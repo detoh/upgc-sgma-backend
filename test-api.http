@@ -1,0 +1,22 @@
+### Créer un utilisateur
+POST http://localhost:3000/auth/register
+Content-Type: application/json
+
+{
+  "nom": "Admin",
+  "prenom": "Super",
+  "email": "admin@upgc.com",
+  "motDePasse": "admin123",
+  "role": "ADMIN"
+}
+
+###
+
+### Se connecter
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@upgc.com",
+  "motDePasse": "admin123"
+}

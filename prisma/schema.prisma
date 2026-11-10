@@ -1,0 +1,363 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["views"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Utilisateur {
+  id           BigInt          @id @default(autoincrement())
+  nom          String          @db.VarChar(100)
+  prenom       String          @db.VarChar(100)
+  email        String          @unique @db.VarChar(255)
+  telephone    String?         @db.VarChar(30)
+  motDePasse   String          @map("mot_de_passe") @db.VarChar(255)
+  role         RoleUtilisateur @default(GESTIONNAIRE)
+  actif        Boolean         @default(true)
+  dernierAcces DateTime?       @map("dernier_acces")
+  dateCreation DateTime        @default(now()) @map("date_creation") @db.Timestamptz(6)
+
+  membres             Membre[]
+  dons                Don[]
+  prestationsValidees Prestation[] @relation("PrestationsValidees")
+  prestationsPayees   Prestation[] @relation("PrestationsPayees")
+  notificationsInApp NotificationInApp[]
+  @@map("utilisateurs")
+}
+
+model Membre {
+  id            BigInt          @id @default(autoincrement())
+  matricule     String          @unique @db.VarChar(50)
+  nom           String          @db.VarChar(100)
+  prenom        String          @db.VarChar(100)
+  sexe          SexeEnum
+  dateNaissance DateTime        @map("date_naissance") @db.Date
+  profession    String?         @db.VarChar(150)
+  adresse       String?
+  telephone     String?         @db.VarChar(30)
+  email         String?         @db.VarChar(255)
+  dateAdhesion  DateTime        @default(dbgenerated("CURRENT_DATE")) @map("date_adhesion") @db.Date
+  statut        StatutMembre    @default(ACTIF)
+  utilisateurId BigInt?         @map("utilisateur_id")
+  
+  utilisateur Utilisateur?    @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
+  famille     MembreFamille[]
+  cotisations Cotisation[]
+  prestations Prestation[]
+
+  @@index([nom, prenom], map: "idx_membres_nom_prenom")
+  @@index([statut], map: "idx_membres_statut")
+  @@index([utilisateurId], map: "idx_membres_utilisateur_id")
+  @@map("membres")
+}
+
+model MembreFamille {
+  id            BigInt          @id @default(autoincrement())
+  membreId      BigInt          @map("membre_id")
+  nom           String          @db.VarChar(100)
+  prenom        String          @db.VarChar(100)
+  lienParente   LienParenteEnum @map("lien_parente")
+  dateNaissance DateTime?       @map("date_naissance") @db.Date
+  telephone     String?         @db.VarChar(30)
+  
+  membre       Membre       @relation(fields: [membreId], references: [id], onDelete: Cascade)
+  prestations  Prestation[]
+
+  @@index([membreId], map: "idx_membres_famille_membre_id")
+  @@map("membres_famille")
+}
+
+model TypeCotisation {
+  id          BigInt       @id @default(autoincrement())
+  libelle     String       @unique @db.VarChar(100)
+  cotisations Cotisation[]
+  parametres  Parametre[]
+
+  @@map("types_cotisation")
+}
+
+model Cotisation {
+  id               BigInt            @id @default(autoincrement())
+  membreId         BigInt            @map("membre_id")
+  typeCotisationId BigInt            @map("type_cotisation_id")
+  montant          Decimal           @db.Decimal(12, 2)
+  periode          String            @db.VarChar(20)
+  datePaiement     DateTime?         @map("date_paiement") @db.Date
+  modePaiement     ModePaiementEnum? @map("mode_paiement")
+  reference        String?           @db.VarChar(100)
+  statut           StatutCotisation  @default(EN_ATTENTE)
+  
+  membre         Membre         @relation(fields: [membreId], references: [id], onDelete: Cascade)
+  typeCotisation TypeCotisation @relation(fields: [typeCotisationId], references: [id])
+
+  @@unique([membreId, typeCotisationId, periode], map: "uq_cotisation_membre_type_periode")
+  @@index([membreId], map: "idx_cotisations_membre_id")
+  @@index([statut], map: "idx_cotisations_statut")
+  @@index([typeCotisationId], map: "idx_cotisations_type_id")
+  @@index([periode], map: "idx_cotisations_periode")
+  @@index([datePaiement], map: "idx_cotisations_date_paiement")
+  @@map("cotisations")
+}
+
+model Prestation {
+  id               BigInt             @id @default(autoincrement())
+  membreId         BigInt             @map("membre_id")
+  beneficiaireId   BigInt?            @map("beneficiaire_id")
+  typePrestation   TypePrestationEnum @map("type_prestation")
+  dateEvenement    DateTime           @map("date_evenement") @db.Date
+  description      String?
+  montant          Decimal            @db.Decimal(12, 2)
+  statut           StatutPrestation   @default(EN_ATTENTE)
+  
+  dateValidation   DateTime?          @map("date_validation") @db.Timestamptz(6)
+  valideParId      BigInt?            @map("valide_par_id")
+  
+  datePaiement     DateTime?          @map("date_paiement") @db.Timestamptz(6)
+  modePaiement     ModePaiementEnum?  @map("mode_paiement")
+  reference        String?            @db.VarChar(100)
+  payeParId        BigInt?            @map("paye_par_id")
+ 
+  historique       Json?              @default("[]")
+  membre       Membre         @relation(fields: [membreId], references: [id], onDelete: Cascade)
+  beneficiaire MembreFamille? @relation(fields: [beneficiaireId], references: [id], onDelete: SetNull)
+  validePar    Utilisateur?   @relation("PrestationsValidees", fields: [valideParId], references: [id], onDelete: SetNull)
+  payePar      Utilisateur?   @relation("PrestationsPayees", fields: [payeParId], references: [id], onDelete: SetNull)
+
+  @@index([membreId], map: "idx_prestations_membre_id")
+  @@index([beneficiaireId], map: "idx_prestations_beneficiaire_id")
+  @@index([statut], map: "idx_prestations_statut")
+  @@index([typePrestation], map: "idx_prestations_type")
+  @@map("prestations")
+}
+
+model Activite {
+  id          BigInt   @id @default(autoincrement())
+  titre       String   @db.VarChar(200)
+  description String?
+  lieu        String?  @db.VarChar(200)
+  date        DateTime @db.Date
+  budget      Decimal? @db.Decimal(12, 2)
+  responsable String?  @db.VarChar(150)
+
+  @@index([date], map: "idx_activites_date")
+  @@map("activites")
+}
+
+model Don {
+  id                  BigInt            @id @default(autoincrement())
+  structureDonatrice  String            @map("structure_donatrice") @db.VarChar(200)
+  montant             Decimal           @db.Decimal(12, 2)
+  dateDon             DateTime          @default(now()) @map("date_don") @db.Date
+  modePaiement        ModePaiementEnum  @default(ESPECES) @map("mode_paiement")
+  motif               String?
+  reference           String?           @db.VarChar(100)
+  utilisateurId       BigInt?           @map("utilisateur_id")
+  dateCreation        DateTime          @default(now()) @map("date_creation") @db.Timestamptz(6)
+
+  utilisateur Utilisateur? @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
+
+  @@index([dateDon], map: "idx_dons_date_don")
+  @@index([structureDonatrice], map: "idx_dons_structure")
+  @@index([utilisateurId], map: "idx_dons_utilisateur_id")
+  @@map("dons")
+}
+
+model Parametre {
+  id                      Int             @id @default(1) @db.SmallInt
+  nomMutuelle             String          @map("nom_mutuelle") @db.VarChar(200)
+  logoUrl                 String?         @map("logo_url") @db.VarChar(500)
+  adresse                 String?
+  email                   String?         @db.VarChar(255)
+  telephone               String?         @db.VarChar(30)
+  devise                  String          @default("XOF") @db.VarChar(10)
+  typeCotisationDefautId  BigInt?         @map("type_cotisation_defaut_id")
+  montantCotisationDefaut Decimal?        @map("montant_cotisation_defaut") @db.Decimal(12, 2)
+  joursGrace              Int             @default(0) @map("jours_grace")
+  smtpConfig              Json?           @default("{}") @map("smtp_config")
+  paiementEnLigneConfig   Json?           @default("{}") @map("paiement_en_ligne_config")
+  typeCotisationDefaut    TypeCotisation? @relation(fields: [typeCotisationDefautId], references: [id])
+
+  @@map("parametres")
+}
+model NotificationInApp {
+  id           BigInt   @id @default(autoincrement())
+  userId       BigInt   @map("user_id")
+  titre        String   @db.VarChar(200)
+  message      String   @db.VarChar(1000)
+  type         String   @db.VarChar(50)  // INFO, SUCCESS, WARNING, ERROR
+  lien         String?  @db.VarChar(500) // URL optionnelle pour rediriger
+  lue          Boolean  @default(false)
+  dateCreation DateTime @default(now()) @map("date_creation") @db.Timestamptz(6)
+  dateLecture  DateTime? @map("date_lecture") @db.Timestamptz(6)
+
+  utilisateur Utilisateur @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_notifications_user_id")
+  @@index([lue], map: "idx_notifications_lue")
+  @@index([dateCreation], map: "idx_notifications_date_creation")
+  @@map("notifications_inapp")
+}
+// ==========================================
+// VUES SQL (Corrigées pour Prisma 5)
+// ==========================================
+view VueMembresComplet {
+  id                       BigInt              @id
+  matricule                String?             @db.VarChar(50)
+  nom                      String?             @db.VarChar(100)
+  prenom                   String?             @db.VarChar(100)
+  nomComplet               String?             @map("nom_complet")
+  sexe                     SexeEnum?
+  dateNaissance            DateTime?           @map("date_naissance") @db.Date
+  age                      Int?
+  profession               String?             @db.VarChar(150)
+  adresse                  String?
+  telephone                String?             @db.VarChar(30)
+  email                    String?             @db.VarChar(255)
+  dateAdhesion             DateTime?           @map("date_adhesion") @db.Date
+  statut                   StatutMembre?
+  utilisateurId            BigInt?             @map("utilisateur_id")
+  nbAyantsDroit            BigInt?             @map("nb_ayants_droit")
+  derniereCotisationDate   DateTime?           @map("derniere_cotisation_date") @db.Date
+  derniereCotisationStatut StatutCotisation?   @map("derniere_cotisation_statut")
+
+  @@map("vue_membres_complet")
+}
+
+view VueSituationCotisations {
+  id                    BigInt              @id
+  membreId              BigInt?             @map("membre_id")
+  matricule             String?             @db.VarChar(50)
+  membreNomComplet      String?             @map("membre_nom_complet")
+  typeCotisationId      BigInt?             @map("type_cotisation_id")
+  typeCotisationLibelle String?             @map("type_cotisation_libelle") @db.VarChar(100)
+  montant               Decimal?            @db.Decimal(12, 2)
+  periode               String?             @db.VarChar(20)
+  datePaiement          DateTime?           @map("date_paiement") @db.Date
+  modePaiement          ModePaiementEnum?   @map("mode_paiement")
+  reference             String?             @db.VarChar(100)
+  statut                StatutCotisation?
+  estImpayee            Boolean?            @map("est_impayee")
+  joursGrace            Int?                @map("jours_grace")
+
+  @@map("vue_situation_cotisations")
+}
+
+view VuePrestationsEnAttente {
+  id                     BigInt              @id
+  membreId               BigInt?             @map("membre_id")
+  matricule              String?             @db.VarChar(50)
+  membreNomComplet       String?             @map("membre_nom_complet")
+  typePrestation         TypePrestationEnum? @map("type_prestation")
+  dateEvenement          DateTime?           @map("date_evenement") @db.Date
+  description            String?
+  montant                Decimal?            @db.Decimal(12, 2)
+  statut                 StatutPrestation?
+  joursDepuisEvenement   Int?                @map("jours_depuis_evenement")
+
+  @@map("vue_prestations_en_attente")
+}
+
+view VueMembresFamille {
+  membreId         BigInt  @id @map("membre_id")
+  matricule        String? @db.VarChar(50)
+  membreNomComplet String? @map("membre_nom_complet")
+  ayantsDroit      Json?   @map("ayants_droit") @db.Json
+
+  @@map("vue_membres_famille")
+}
+
+view VueActivitesAVenir {
+  id             BigInt    @id
+  titre          String?   @db.VarChar(200)
+  description    String?
+  lieu           String?   @db.VarChar(200)
+  date           DateTime? @db.Date
+  budget         Decimal?  @db.Decimal(12, 2)
+  responsable    String?   @db.VarChar(150)
+  joursRestants  Int?      @map("jours_restants")
+
+  @@map("vue_activites_a_venir")
+}
+
+view VueDashboardStats {
+  id                             Int                                 @id @default(1)
+  totalMembresActifs             BigInt?                             @map("total_membres_actifs")
+  totalMembresSuspendus          BigInt?                             @map("total_membres_suspendus")
+  totalAyantsDroit               BigInt?                             @map("total_ayants_droit")
+  prestationsEnAttente           BigInt?                             @map("prestations_en_attente")
+  cotisationsMontantMoisCourant  Decimal?                            @map("cotisations_montant_mois_courant") @db.Decimal(12,2)
+  cotisationsNbMoisCourant       BigInt?                             @map("cotisations_nb_mois_courant")
+  prestationsMontantMoisCourant  Decimal?                            @map("prestations_montant_mois_courant") @db.Decimal(12,2)
+  activitesAVenir                BigInt?                             @map("activites_a_venir")
+
+  @@map("vue_dashboard_stats")
+}
+
+enum RoleUtilisateur {
+  ADMIN
+  GESTIONNAIRE
+  CAISSIER
+  MEMBRE 
+  @@map("role_utilisateur")
+}
+
+enum SexeEnum {
+  M
+  F
+  @@map("sexe_enum")
+}
+
+enum StatutMembre {
+  ACTIF
+  SUSPENDU
+  RADIE
+  @@map("statut_membre")
+}
+
+enum LienParenteEnum {
+  PERE     @map("Père")
+  MERE     @map("Mère")
+  CONJOINT @map("Conjoint")
+  ENFANT   @map("Enfant")
+  @@map("lien_parente_enum")
+}
+
+enum StatutCotisation {
+  EN_ATTENTE
+  PAYEE
+  EN_RETARD
+  ANNULEE
+  @@map("statut_cotisation")
+}
+
+enum ModePaiementEnum {
+  ESPECES
+  MOBILE_MONEY
+  VIREMENT
+  CHEQUE
+  CARTE
+  @@map("mode_paiement_enum")
+}
+
+enum TypePrestationEnum {
+  NAISSANCE
+  MARIAGE_MEMBRE
+  DECES_PERE
+  DECES_MERE
+  DECES_CONJOINT
+  DECES_ENFANT
+  DEPART_RETRAITE
+  MUTATION
+  @@map("type_prestation_enum")
+}
+
+enum StatutPrestation {
+  EN_ATTENTE
+  VALIDEE
+  REJETEE
+  PAYEE
+  @@map("statut_prestation")
+}

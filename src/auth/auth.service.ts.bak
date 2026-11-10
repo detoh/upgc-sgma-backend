@@ -1,0 +1,214 @@
+import { 
+  Injectable, 
+  UnauthorizedException, 
+  ConflictException,
+  NotFoundException ,
+  BadRequestException // 👈 AJOUTER
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../prisma/prisma.service';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';  // 👈 AJOUTER
+import * as bcrypt from 'bcrypt';
+import { ChangePasswordDto } from './dto/change-password.dto';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private prisma: PrismaService,
+    private jwtService: JwtService,
+  ) {}
+
+  async login(loginDto: LoginDto) {
+    // Vérifier si l'utilisateur existe
+    const utilisateur = await this.prisma.utilisateur.findUnique({
+      where: { email: loginDto.email },
+    });
+
+    if (!utilisateur) {
+      throw new UnauthorizedException('Email ou mot de passe incorrect');
+    }
+
+    // Vérifier si le compte est actif
+    if (!utilisateur.actif) {
+      throw new UnauthorizedException('Ce compte est désactivé. Contactez un administrateur.');
+    }
+
+    // Vérifier le mot de passe
+    const isPasswordValid = await bcrypt.compare(
+      loginDto.motDePasse,
+      utilisateur.motDePasse,
+    );
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Email ou mot de passe incorrect');
+    }
+
+    // Mettre à jour la date de dernier accès
+    await this.prisma.utilisateur.update({
+      where: { id: utilisateur.id },
+      data: { dernierAcces: new Date() },
+    });
+
+    // ✅ UTILISER generateToken qui fait déjà la conversion BigInt → String
+    const token = this.generateToken(utilisateur);
+
+    return {
+      user: {
+        id: utilisateur.id.toString(),  // ✅ Conversion BigInt → String
+        email: utilisateur.email,
+        nom: utilisateur.nom,
+        prenom: utilisateur.prenom,
+        role: utilisateur.role,
+      },
+      access_token: token,
+    };
+  }
+
+private generateToken(user: any) {
+  const payload = {
+    sub: user.id.toString(), // ✅ Conversion BigInt → String
+    email: user.email,
+    nom: user.nom,           // ✅ Ajout
+    prenom: user.prenom,     // ✅ Ajout
+    role: user.role,
+  };
+
+  return this.jwtService.sign(payload);
+}
+
+  async validateUser(userId: bigint) {
+    return this.prisma.utilisateur.findUnique({
+      where: { id: userId },
+    });
+  }
+  // ==========================================
+  // RÉCUPÉRER LE PROFIL COMPLET DE L'UTILISATEUR CONNECTÉ
+  // ==========================================
+  async getProfile(userId: bigint) {
+    const utilisateur = await this.prisma.utilisateur.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        email: true,
+        telephone: true,
+        role: true,
+        actif: true,
+        dateCreation: true,
+        dernierAcces: true,
+        membres: {
+          select: {
+            id: true,
+            matricule: true,
+            nom: true,
+            prenom: true,
+          },
+        },
+      },
+    });
+
+    if (!utilisateur) {
+      throw new NotFoundException('Utilisateur non trouvé');
+    }
+
+    return utilisateur;
+  }
+
+  // ==========================================
+  // MODIFIER SON PROPRE PROFIL
+  // ==========================================
+  async updateProfile(userId: bigint, dto: UpdateProfileDto) {
+    // Vérifier que l'utilisateur existe
+    const utilisateur = await this.prisma.utilisateur.findUnique({
+      where: { id: userId },
+    });
+
+    if (!utilisateur) {
+      throw new NotFoundException('Utilisateur non trouvé');
+    }
+
+    // Vérifier que l'email n'est pas déjà utilisé par un autre utilisateur
+    if (dto.email && dto.email !== utilisateur.email) {
+      const existingEmail = await this.prisma.utilisateur.findUnique({
+        where: { email: dto.email },
+      });
+
+      if (existingEmail) {
+        throw new ConflictException('Cet email est déjà utilisé par un autre utilisateur');
+      }
+    }
+
+    // Mise à jour du profil (on ne permet PAS de modifier le rôle)
+    return this.prisma.utilisateur.update({
+      where: { id: userId },
+      data: {
+        nom: dto.nom,
+        prenom: dto.prenom,
+        email: dto.email,
+        telephone: dto.telephone,
+      },
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        email: true,
+        telephone: true,
+        role: true,
+        dateCreation: true,
+      },
+    });
+  }
+
+  // ==========================================
+  // CHANGEMENT DE MOT DE PASSE
+  // ==========================================
+  async changePassword(userId: bigint, dto: ChangePasswordDto) {
+    // Vérifier que le nouveau mot de passe et la confirmation correspondent
+    if (dto.nouveauMotDePasse !== dto.confirmationMotDePasse) {
+      throw new BadRequestException('Le nouveau mot de passe et la confirmation ne correspondent pas');
+    }
+
+    // Récupérer l'utilisateur
+    const utilisateur = await this.prisma.utilisateur.findUnique({
+      where: { id: userId },
+    });
+
+    if (!utilisateur) {
+      throw new NotFoundException('Utilisateur non trouvé');
+    }
+
+    // Vérifier le mot de passe actuel
+    const isCurrentPasswordValid = await bcrypt.compare(
+      dto.motDePasseActuel,
+      utilisateur.motDePasse,
+    );
+
+    if (!isCurrentPasswordValid) {
+      throw new UnauthorizedException('Le mot de passe actuel est incorrect');
+    }
+
+    // Vérifier que le nouveau mot de passe est différent de l'ancien
+    const isSamePassword = await bcrypt.compare(
+      dto.nouveauMotDePasse,
+      utilisateur.motDePasse,
+    );
+
+    if (isSamePassword) {
+      throw new BadRequestException('Le nouveau mot de passe doit être différent de l\'ancien');
+    }
+
+    // Hasher le nouveau mot de passe
+    const hashedPassword = await bcrypt.hash(dto.nouveauMotDePasse, 10);
+
+    // Mettre à jour le mot de passe
+    await this.prisma.utilisateur.update({
+      where: { id: userId },
+      data: { motDePasse: hashedPassword },
+    });
+
+    return { message: 'Mot de passe modifié avec succès' };
+  }
+}
