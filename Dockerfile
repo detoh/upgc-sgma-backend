@@ -2,9 +2,9 @@
 
 WORKDIR /app
 
-# Cache buster - cette ligne force l'invalidation du cache
-ARG CACHE_BUST=1
-RUN echo "Cache bust: $CACHE_BUST"
+# Cache buster
+ARG CACHE_BUST=2026
+RUN echo "Build timestamp: $CACHE_BUST"
 
 # Copier package.json et package-lock.json
 COPY package*.json ./
@@ -18,20 +18,14 @@ COPY . .
 # Générer le client Prisma
 RUN npx prisma generate
 
-# Afficher la structure avant le build (debug)
-RUN echo "=== Structure avant build ===" && ls -la src/ || echo "src not found"
+# Compiler TypeScript
+RUN npm run build
 
-# Compiler TypeScript avec affichage détaillé
-RUN npm run build 2>&1 || (echo "=== BUILD FAILED ===" && exit 1)
-
-# Afficher la structure après le build (debug)
-RUN echo "=== Structure après build ===" && ls -la && ls -la dist/ || echo "dist folder not found"
-
-# Vérifier spécifiquement main.js
-RUN if [ -f dist/main.js ]; then echo "✅ dist/main.js exists"; else echo "❌ dist/main.js NOT FOUND" && find . -name "main.js" -type f; fi
+# Vérifier que le fichier existe (debug)
+RUN ls -la dist/src/main.js || echo "main.js not found"
 
 # Exposer le port
 EXPOSE 3000
 
-# Commande de démarrage
-CMD ["node", "dist/main.js"]
+# Commande de démarrage - CORRIGÉ : dist/src/main.js au lieu de dist/main.js
+CMD ["node", "dist/src/main.js"]

@@ -6,12 +6,12 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json --incremental false",
     "format": "prettier --write \"src/**/*.ts\"",
-    "start": "node dist/main.js",
+    "start": "node dist/src/main.js",
     "start:dev": "ts-node -r tsconfig-paths/register src/main.ts",
     "start:debug": "ts-node --inspect -r tsconfig-paths/register src/main.ts",
-    "start:prod": "node dist/main.js"
+    "start:prod": "node dist/src/main.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.4",
