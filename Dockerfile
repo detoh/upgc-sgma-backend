@@ -1,10 +1,9 @@
-﻿# Utilisation de Debian (bookworm-slim) au lieu d'Alpine pour la compatibilité Prisma/OpenSSL
-FROM node:20-bookworm-slim
+﻿FROM node:20-bookworm-slim
 
 WORKDIR /app
 
 # Installation d'OpenSSL (requis par Prisma)
-RUN apt-get update -y && apt-get install -y openssl
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Copier les fichiers de dépendances et le schéma Prisma
 COPY package*.json ./
@@ -23,7 +22,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # Exposer le port
-EXPOSE 3000
+EXPOSE 8080
 
-# Commande de démarrage : db push PUIS démarrage de l'app
-CMD ["sh", "-c", "npx prisma db push && node dist/src/main.js"]
+# Commande de démarrage : synchroniser la base puis démarrer l'app
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/src/main.js"]
