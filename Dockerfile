@@ -1,15 +1,16 @@
-﻿FROM node:20-alpine
+﻿# Utilisation de Debian (bookworm-slim) au lieu d'Alpine pour la compatibilité Prisma/OpenSSL
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Cache buster
-ARG CACHE_BUST=2026
-RUN echo "Build timestamp: $CACHE_BUST"
+# Installation d'OpenSSL (requis par Prisma)
+RUN apt-get update -y && apt-get install -y openssl
 
-# Copier package.json et package-lock.json
+# Copier les fichiers de dépendances et le schéma Prisma
 COPY package*.json ./
+COPY prisma ./prisma/
 
-# Installer toutes les dépendances
+# Installer les dépendances
 RUN npm install
 
 # Copier le reste du code source
@@ -21,11 +22,8 @@ RUN npx prisma generate
 # Compiler TypeScript
 RUN npm run build
 
-# Vérifier que le fichier existe (debug)
-RUN ls -la dist/src/main.js || echo "main.js not found"
-
 # Exposer le port
 EXPOSE 3000
 
-# Commande de démarrage - CORRIGÉ : dist/src/main.js au lieu de dist/main.js
+# Commande de démarrage (le chemin dist/src/main.js est correct)
 CMD ["node", "dist/src/main.js"]
