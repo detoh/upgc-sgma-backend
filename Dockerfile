@@ -25,5 +25,5 @@ RUN npm run build
 # Exposer le port
 EXPOSE 3000
 
-# Commande de démarrage (le chemin dist/src/main.js est correct)
-CMD ["node", "dist/src/main.js"]
+# Commande de démarrage : db push PUIS démarrage de l'app
+CMD ["sh", "-c", "npx prisma db push && node dist/src/main.js"]
