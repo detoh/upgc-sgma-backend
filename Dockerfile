@@ -2,6 +2,10 @@
 
 WORKDIR /app
 
+# Cache buster - cette ligne force l'invalidation du cache
+ARG CACHE_BUST=1
+RUN echo "Cache bust: $CACHE_BUST"
+
 # Copier package.json et package-lock.json
 COPY package*.json ./
 
