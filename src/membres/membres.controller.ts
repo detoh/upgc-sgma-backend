@@ -23,7 +23,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RoleUtilisateur } from '@prisma/client';
 import { BigIntInterceptor } from '../common/interceptors/bigint.interceptor';
-
+import { Request } from '@nestjs/common';
 @Controller('membres')
 @UseGuards(JwtAuthGuard)
 @UseInterceptors(BigIntInterceptor)
@@ -83,6 +83,87 @@ export class MembresController {
   @Get(':id/famille')
   async getFamille(@Param('id', ParseIntPipe) id: number) {
     return this.membresService.getFamille(BigInt(id));
+  }
+
+  
+  // ==========================================
+  // RÉCUPÉRER LE MEMBRE LIÉ AU COMPTE CONNECTÉ
+  // ==========================================
+  @Get('me')
+  async getMyMembre(@Request() req) {
+    return this.membresService.getMembreByUtilisateurId(BigInt(req.user.id));
+  }
+
+  // ==========================================
+  // AJOUTER UN AYANT DROIT AU MEMBRE CONNECTÉ
+  // ==========================================
+  @Post('me/famille')
+  async addMyFamille(@Request() req, @Body() dto: any) {
+    return this.membresService.addFamilleToCurrentMembre(BigInt(req.user.id), dto);
+  }
+
+  // ==========================================
+  // LISTER LA FAMILLE DU MEMBRE CONNECTÉ
+  // ==========================================
+  @Get('me/famille')
+  async getMyFamille(@Request() req) {
+    return this.membresService.getFamilleByUtilisateurId(BigInt(req.user.id));
+  }
+
+  // ==========================================
+  // MODIFIER UN AYANT DROIT DU MEMBRE CONNECTÉ
+  // ==========================================
+  @Patch('me/famille/:id')
+  async updateMyFamille(
+    @Request() req,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: any,
+  ) {
+    return this.membresService.updateFamilleOwner(BigInt(req.user.id), BigInt(id), dto);
+  }
+
+  // ==========================================
+  // SUPPRIMER UN AYANT DROIT DU MEMBRE CONNECTÉ
+  // ==========================================
+  @Delete('me/famille/:id')
+  async removeMyFamille(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    return this.membresService.removeFamilleOwner(BigInt(req.user.id), BigInt(id));
+  }
+  // ==========================================
+  // AJOUTER UN AYANT DROIT (ADMIN/GESTIONNAIRE)
+  // ==========================================
+  @Post(':id/famille')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  async addFamille(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.membresService.addFamille(BigInt(id), dto);
+  }
+
+  // ==========================================
+  // MODIFIER UN AYANT DROIT (ADMIN/GESTIONNAIRE)
+  // ==========================================
+  @Patch(':id/famille/:familleId')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  async updateFamille(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('familleId', ParseIntPipe) familleId: number,
+    @Body() dto: any,
+  ) {
+    return this.membresService.updateFamille(BigInt(familleId), dto);
+  }
+
+  // ==========================================
+  // SUPPRIMER UN AYANT DROIT (ADMIN/GESTIONNAIRE)
+  // ==========================================
+  @Delete(':id/famille/:familleId')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  async removeFamille(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('familleId', ParseIntPipe) familleId: number,
+  ) {
+    return this.membresService.removeFamille(BigInt(familleId));
   }
   // ==========================================
   // DÉTAIL D'UN MEMBRE

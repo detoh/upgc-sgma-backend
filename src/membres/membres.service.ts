@@ -799,5 +799,97 @@ export class MembresService {
         },
       };
     }
-    
+    // ==========================================
+    // RÉCUPÉRER LE MEMBRE LIÉ À L'UTILISATEUR CONNECTÉ
+    // ==========================================
+    async getMembreByUtilisateurId(utilisateurId: bigint) {
+      const membre = await this.prisma.membre.findFirst({
+        where: { utilisateurId },
+        include: {
+          famille: { orderBy: { id: 'asc' } },
+          cotisations: {
+            include: { typeCotisation: true },
+            orderBy: { periode: 'desc' },
+          },
+          prestations: { orderBy: { dateEvenement: 'desc' } },
+        },
+      });
+
+      if (!membre) {
+        throw new NotFoundException('Aucun membre associé à ce compte utilisateur');
+      }
+
+      return membre;
+    }
+
+    // ==========================================
+    // VÉRIFIER QUE LE MEMBRE APPARTIENT À L'UTILISATEUR
+    // ==========================================
+    private async verifyMembreOwnership(membreId: bigint, utilisateurId: bigint) {
+      const membre = await this.prisma.membre.findUnique({
+        where: { id: membreId },
+      });
+
+      if (!membre) {
+        throw new NotFoundException(`Membre avec ID ${membreId} non trouvé`);
+      }
+
+      if (membre.utilisateurId !== utilisateurId) {
+        throw new BadRequestException('Accès refusé : ce membre ne vous appartient pas');
+      }
+
+      return membre;
+    }
+
+    // ==========================================
+    // AJOUTER UN AYANT DROIT AU MEMBRE CONNECTÉ
+    // ==========================================
+    async addFamilleToCurrentMembre(utilisateurId: bigint, dto: any) {
+      const membre = await this.getMembreByUtilisateurId(utilisateurId);
+      return this.addFamille(membre.id, dto);
+    }
+
+    // ==========================================
+    // LISTER LA FAMILLE DU MEMBRE CONNECTÉ
+    // ==========================================
+    async getFamilleByUtilisateurId(utilisateurId: bigint) {
+      const membre = await this.getMembreByUtilisateurId(utilisateurId);
+      return this.getFamille(membre.id);
+    }
+
+    // ==========================================
+    // MODIFIER UN AYANT DROIT (avec vérification propriétaire)
+    // ==========================================
+    async updateFamilleOwner(utilisateurId: bigint, familleId: bigint, dto: any) {
+      const membre = await this.getMembreByUtilisateurId(utilisateurId);
+      
+      // Vérifier que l'ayant droit appartient bien au membre
+      const famille = await this.prisma.membreFamille.findFirst({
+        where: { id: familleId, membreId: membre.id },
+      });
+
+      if (!famille) {
+        throw new NotFoundException('Ayant droit non trouvé ou accès refusé');
+      }
+
+      return this.updateFamille(familleId, dto);
+    }
+
+    // ==========================================
+    // SUPPRIMER UN AYANT DROIT (avec vérification propriétaire)
+    // ==========================================
+    async removeFamilleOwner(utilisateurId: bigint, familleId: bigint) {
+      const membre = await this.getMembreByUtilisateurId(utilisateurId);
+      
+      // Vérifier que l'ayant droit appartient bien au membre
+      const famille = await this.prisma.membreFamille.findFirst({
+        where: { id: familleId, membreId: membre.id },
+      });
+
+      if (!famille) {
+        throw new NotFoundException('Ayant droit non trouvé ou accès refusé');
+      }
+
+      return this.removeFamille(familleId);
+    }
   }

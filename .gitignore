@@ -4,7 +4,7 @@ node_modules/
 # Build NestJS
 dist/
 build/
-
+*.tsbuildinfo
 # Fichiers d'environnement
 .env
 .env.local
