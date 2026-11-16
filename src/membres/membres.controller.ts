@@ -179,6 +179,8 @@ export class MembresController {
   // DÉTAIL D'UN MEMBRE
   // ==========================================
   @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.membresService.findOne(BigInt(id));
   }
