@@ -16,24 +16,52 @@ export class MembresService {
   constructor(private prisma: PrismaService) {}
 
   // ==========================================
-  // GÉNÉRATION AUTOMATIQUE DU MATRICULE
+  // GÉNÉRATION AUTOMATIQUE DU MATRICULE (VERSION ROBUSTE)
   // ==========================================
   private async generateMatricule(): Promise<string> {
     const annee = new Date().getFullYear();
     const prefix = `UPGC-${annee}-`;
 
-    // Compter les membres créés cette année
-    const count = await this.prisma.membre.count({
-      where: {
-        matricule: {
-          startsWith: prefix,
+    // Mécanisme de retry en cas de collision rare (concurrence)
+    for (let tentative = 0; tentative < 5; tentative++) {
+      // Chercher le DERNIER matricule de l'année (trié par ordre décroissant)
+      const dernier = await this.prisma.membre.findFirst({
+        where: {
+          matricule: {
+            startsWith: prefix,
+          },
         },
-      },
-    });
+        orderBy: { matricule: 'desc' },
+        select: { matricule: true },
+      });
 
-    // Générer le matricule : UPGC-2026-001, UPGC-2026-002, etc.
-    const numero = (count + 1).toString().padStart(3, '0');
-    return `${prefix}${numero}`;
+      let numero = 1;
+      if (dernier) {
+        // Extraire le numéro du matricule "UPGC-2026-XXX"
+        const match = dernier.matricule.match(/UPGC-\d{4}-(\d+)/);
+        if (match) {
+          numero = parseInt(match[1], 10) + 1;
+        }
+      }
+
+      // Ajouter la tentative pour éviter les collisions en cas de concurrence
+      numero += tentative;
+
+      const matricule = `${prefix}${numero.toString().padStart(3, '0')}`;
+
+      // Vérifier qu'il n'existe pas déjà (double sécurité)
+      const existe = await this.prisma.membre.findUnique({
+        where: { matricule },
+      });
+
+      if (!existe) {
+        return matricule;
+      }
+    }
+
+    throw new BadRequestException(
+      'Impossible de générer un matricule unique après 5 tentatives. Contactez un administrateur.',
+    );
   }
 
   // ==========================================
