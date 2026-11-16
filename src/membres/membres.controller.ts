@@ -34,6 +34,8 @@ export class MembresController {
   // LISTE DES MEMBRES (avec pagination, filtres, recherche)
   // ==========================================
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   findAll(@Query() query: QueryMembreDto) {
     // Nettoyer les chaînes vides pour éviter les erreurs 400
     const cleanedQuery: any = {
@@ -58,6 +60,8 @@ export class MembresController {
   // MEMBRES À RELANCER (en retard de paiement)
   // ==========================================
   @Get('a-relancer')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER) 
   getMembresARelancer(@Query() query: { periode?: string; statut?: string }) {
     return this.membresService.getMembresARelancer(query);
   }
@@ -66,6 +70,8 @@ export class MembresController {
   // STATUT COMPLET D'UN MEMBRE (avec cotisations)
   // ==========================================
   @Get(':id/statut-complet')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async getStatutComplet(@Param('id', ParseIntPipe) id: number) {
     return this.membresService.getStatutComplet(BigInt(id));
   }
@@ -74,6 +80,8 @@ export class MembresController {
   // STATUT DES COTISATIONS D'UN MEMBRE
   // ==========================================
   @Get(':id/statut-cotisations')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   getStatutCotisations(@Param('id', ParseIntPipe) id: number) {
     return this.membresService.getStatutCotisations(BigInt(id));
   }
@@ -81,6 +89,8 @@ export class MembresController {
   // FAMILLE D'UN MEMBRE (ayants droit)
   // ==========================================
   @Get(':id/famille')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async getFamille(@Param('id', ParseIntPipe) id: number) {
     return this.membresService.getFamille(BigInt(id));
   }
