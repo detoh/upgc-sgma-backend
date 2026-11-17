@@ -31,6 +31,8 @@ export class CotisationsController {
   }
 
   @Get('types')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async findAllTypes() {
     return this.cotisationsService.findAllTypes();
   }
@@ -48,16 +50,22 @@ export class CotisationsController {
   }
 
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async findAll(@Query() query: QueryCotisationDto) {
     return this.cotisationsService.findAll(query);
   }
 
   @Get('stats/membre/:membreId')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async getStatsByMembre(@Param('membreId', ParseIntPipe) membreId: number) {
     return this.cotisationsService.getStatsByMembre(BigInt(membreId));
   }
 
   @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.cotisationsService.findOne(BigInt(id));
   }
