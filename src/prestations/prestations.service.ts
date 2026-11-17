@@ -465,4 +465,24 @@ export class PrestationsService {
       montantPayees: montantPayees._sum.montant || 0,
     };
   }
+
+    // ==========================================
+    // PRESTATIONS D'UN UTILISATEUR CONNECTÉ (via son membre)
+    // ==========================================
+    async getPrestationsByUtilisateurId(utilisateurId: bigint) {
+      // Trouver le membre lié à cet utilisateur
+      const membre = await this.prisma.membre.findFirst({
+        where: { utilisateurId },
+      });
+
+      if (!membre) {
+        return []; // Pas de membre = pas de prestations
+      }
+
+      // Retourner les prestations de CE membre uniquement
+      return this.prisma.prestation.findMany({
+        where: { membreId: membre.id },
+        orderBy: { dateEvenement: 'desc' },
+      });
+    }
 }

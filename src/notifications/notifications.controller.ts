@@ -2,9 +2,13 @@ import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { RelanceDto, MembreRelanceDto } from './dto/relance.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RoleUtilisateur } from '@prisma/client';
 
 @Controller('notifications')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
 export class NotificationsController {
   constructor(private notificationsService: NotificationsService) {}
 

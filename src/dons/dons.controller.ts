@@ -26,11 +26,15 @@ export class DonsController {
   }
 
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async findAll() {
     return this.donsService.findAll();
   }
 
   @Get('stats')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async getStats() {
     return this.donsService.getStats();
   }

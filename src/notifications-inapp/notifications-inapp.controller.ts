@@ -1,10 +1,14 @@
 import { Controller, Get, Post, Patch, Delete, Param, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { NotificationsInAppService } from './notifications-inapp.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RoleUtilisateur } from '@prisma/client';
 
 @Controller('notifications-inapp')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER, RoleUtilisateur.MEMBRE)
 export class NotificationsInAppController {
   constructor(private notificationsInAppService: NotificationsInAppService) {}
 

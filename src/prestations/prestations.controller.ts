@@ -1,6 +1,6 @@
-import { 
-  Controller, Get, Post, Patch, Body, Param, Query, 
-  UseGuards, HttpCode, HttpStatus, ParseIntPipe 
+import {
+  Controller, Get, Post, Patch, Body, Param, Query,
+  UseGuards, HttpCode, HttpStatus, ParseIntPipe, Request
 } from '@nestjs/common';
 import { PrestationsService } from './prestations.service';
 import { CreatePrestationDto } from './dto/create-prestation.dto';
@@ -19,6 +19,14 @@ import { RoleUtilisateur } from '@prisma/client';
 export class PrestationsController {
   constructor(private prestationsService: PrestationsService) {}
 
+  // ==========================================
+  // ESPACE MEMBRE (routes "me") — AVANT les routes ":id"
+  // ==========================================
+  @Get('me')
+  async getMyPrestations(@Request() req) {
+    return this.prestationsService.getPrestationsByUtilisateurId(BigInt(req.user.id));
+  }
+
   @Post()
   @UseGuards(RolesGuard)
   @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
@@ -30,7 +38,10 @@ export class PrestationsController {
     return this.prestationsService.create(dto, user.id);
   }
 
+  // 🔒 Protégé : ADMIN/GESTIONNAIRE uniquement
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
   async findAll(@Query() query: QueryPrestationDto) {
     return this.prestationsService.findAll(query);
   }
@@ -42,7 +53,10 @@ export class PrestationsController {
     return this.prestationsService.getStats();
   }
 
+  // 🔒 Protégé : ADMIN/GESTIONNAIRE uniquement
   @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.prestationsService.findOne(BigInt(id));
   }

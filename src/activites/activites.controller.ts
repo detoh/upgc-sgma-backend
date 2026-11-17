@@ -1,6 +1,6 @@
-import { 
-  Controller, Get, Post, Patch, Delete, Body, Param, 
-  UseGuards, HttpCode, HttpStatus, ParseIntPipe 
+import {
+  Controller, Get, Post, Patch, Delete, Body, Param,
+  UseGuards, HttpCode, HttpStatus, ParseIntPipe
 } from '@nestjs/common';
 import { ActivitesService } from './activites.service';
 import { CreateActiviteDto } from './dto/create-activite.dto';
@@ -23,12 +23,18 @@ export class ActivitesController {
     return this.activitesService.create(dto);
   }
 
+  // 🔒 Visible par tous les utilisateurs authentifiés
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER, RoleUtilisateur.MEMBRE)
   async findAll() {
     return this.activitesService.findAll();
   }
 
+  // 🔒 Visible par tous les utilisateurs authentifiés
   @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER, RoleUtilisateur.MEMBRE)
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.activitesService.findOne(BigInt(id));
   }
