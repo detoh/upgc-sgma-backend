@@ -12,6 +12,8 @@ export class ParametresController {
   constructor(private parametresService: ParametresService) {}
 
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.ADMIN)
   async get() {
     return this.parametresService.get();
   }
