@@ -50,11 +50,14 @@ export class MembresService {
       const matricule = `${prefix}${numero.toString().padStart(3, '0')}`;
 
       // Vérifier qu'il n'existe pas déjà (double sécurité)
-      const existe = await this.prisma.membre.findUnique({
-        where: { matricule },
+      const existing = await this.prisma.membre.findFirst({
+        where: { 
+          matricule,
+          organisationId: 1n, // 🆕 Organisation UPGC par défaut
+        },
       });
 
-      if (!existe) {
+      if (!existing) {
         return matricule;
       }
     }

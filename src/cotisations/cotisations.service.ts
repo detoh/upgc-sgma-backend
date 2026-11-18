@@ -17,10 +17,13 @@ export class CotisationsService {
   // TYPES DE COTISATION
   // ==========================================
   async createType(dto: CreateTypeCotisationDto) {
-    // Vérifier si le libellé existe déjà
-    const existing = await this.prisma.typeCotisation.findUnique({
-      where: { libelle: dto.libelle },
-    });
+  // APRÈS (ajoute organisationId: 1 temporairement)
+  const existing = await this.prisma.typeCotisation.findFirst({
+    where: { 
+      libelle: dto.libelle,
+      organisationId: 1n, // 🆕 Organisation UPGC par défaut
+    },
+  });
 
     if (existing) {
       throw new ConflictException('Ce type de cotisation existe déjà');

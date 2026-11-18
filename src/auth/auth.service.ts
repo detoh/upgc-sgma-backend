@@ -21,7 +21,7 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existingUser = await this.prisma.utilisateur.findUnique({
+    const existingUser = await this.prisma.utilisateur.findFirst({
       where: { email: dto.email },
     });
 
@@ -57,7 +57,7 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    const utilisateur = await this.prisma.utilisateur.findUnique({
+    const utilisateur = await this.prisma.utilisateur.findFirst({
       where: { email: loginDto.email },
     });
 
@@ -156,7 +156,7 @@ export class AuthService {
     }
 
     if (dto.email && dto.email !== utilisateur.email) {
-      const existingEmail = await this.prisma.utilisateur.findUnique({
+      const existingEmail = await this.prisma.utilisateur.findFirst({
         where: { email: dto.email },
       });
 

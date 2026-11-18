@@ -10,7 +10,7 @@ export class UtilisateursService {
 
   async create(dto: CreateUtilisateurDto) {
     // Vérifier si l'email existe déjà
-    const existing = await this.prisma.utilisateur.findUnique({
+    const existing = await this.prisma.utilisateur.findFirst({
       where: { email: dto.email },
     });
 

@@ -8,29 +8,70 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Utilisateur {
-  id           BigInt          @id @default(autoincrement())
-  nom          String          @db.VarChar(100)
-  prenom       String          @db.VarChar(100)
-  email        String          @unique @db.VarChar(255)
-  telephone    String?         @db.VarChar(30)
-  motDePasse   String          @map("mot_de_passe") @db.VarChar(255)
-  role         RoleUtilisateur @default(GESTIONNAIRE)
-  actif        Boolean         @default(true)
-  dernierAcces DateTime?       @map("dernier_acces")
-  dateCreation DateTime        @default(now()) @map("date_creation") @db.Timestamptz(6)
+// ==========================================
+// ORGANISATION (NOUVEAU - modèle racine du SaaS)
+// ==========================================
+model Organisation {
+  id            BigInt             @id @default(autoincrement())
+  nom           String             @db.VarChar(200)
+  slug          String             @unique @db.VarChar(100) // ex: upgc, mutuelle-x
+  logoUrl       String?            @map("logo_url") @db.VarChar(500)
+  adresse       String?
+  email         String?            @db.VarChar(255)
+  telephone     String?            @db.VarChar(30)
+  devise        String             @default("XOF") @db.VarChar(10)
+  plan          PlanAbonnement     @default(ESSAI)
+  statutAbonnement StatutAbonnement @default(ACTIF) @map("statut_abonnement")
+  dateDebutEssai DateTime?         @map("date_debut_essai") @db.Timestamptz(6)
+  dateFinEssai   DateTime?         @map("date_fin_essai") @db.Timestamptz(6)
+  dateCreation  DateTime           @default(now()) @map("date_creation") @db.Timestamptz(6)
+  actif         Boolean            @default(true)
 
+  // Relations
+  utilisateurs      Utilisateur[]
+  membres           Membre[]
+  typesCotisation   TypeCotisation[]
+  cotisations       Cotisation[]
+  prestations       Prestation[]
+  activites         Activite[]
+  dons              Don[]
+  parametres        Parametre[]
+  notificationsInApp NotificationInApp[]
+
+  @@index([slug], map: "idx_organisations_slug")
+  @@index([statutAbonnement], map: "idx_organisations_statut")
+  @@map("organisations")
+}
+
+model Utilisateur {
+  id              BigInt          @id @default(autoincrement())
+  organisationId  BigInt          @default(1) @map("organisation_id")
+  nom             String          @db.VarChar(100)
+  prenom          String          @db.VarChar(100)
+  email           String          @db.VarChar(255)
+  telephone       String?         @db.VarChar(30)
+  motDePasse      String          @map("mot_de_passe") @db.VarChar(255)
+  role            RoleUtilisateur @default(GESTIONNAIRE)
+  actif           Boolean         @default(true)
+  dernierAcces    DateTime?       @map("dernier_acces")
+  dateCreation    DateTime        @default(now()) @map("date_creation") @db.Timestamptz(6)
+
+  organisation        Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   membres             Membre[]
   dons                Don[]
-  prestationsValidees Prestation[] @relation("PrestationsValidees")
-  prestationsPayees   Prestation[] @relation("PrestationsPayees")
-  notificationsInApp NotificationInApp[]
+  prestationsValidees Prestation[]        @relation("PrestationsValidees")
+  prestationsPayees   Prestation[]        @relation("PrestationsPayees")
+  notificationsInApp  NotificationInApp[]
+
+  @@unique([email, organisationId], map: "uq_utilisateurs_email_org")
+  @@index([organisationId], map: "idx_utilisateurs_organisation_id")
   @@map("utilisateurs")
 }
 
 model Membre {
   id            BigInt          @id @default(autoincrement())
-  matricule     String          @unique @db.VarChar(50)
+  organisationId BigInt         @default(1) @map("organisation_id")
+  matricule     String          @db.VarChar(50)
   nom           String          @db.VarChar(100)
   prenom        String          @db.VarChar(100)
   sexe          SexeEnum
@@ -42,15 +83,18 @@ model Membre {
   dateAdhesion  DateTime        @default(dbgenerated("CURRENT_DATE")) @map("date_adhesion") @db.Date
   statut        StatutMembre    @default(ACTIF)
   utilisateurId BigInt?         @map("utilisateur_id")
-  
-  utilisateur Utilisateur?    @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
-  famille     MembreFamille[]
-  cotisations Cotisation[]
-  prestations Prestation[]
 
+  organisation Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  utilisateur  Utilisateur?   @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
+  famille      MembreFamille[]
+  cotisations  Cotisation[]
+  prestations  Prestation[]
+
+  @@unique([matricule, organisationId], map: "uq_membres_matricule_org")
   @@index([nom, prenom], map: "idx_membres_nom_prenom")
   @@index([statut], map: "idx_membres_statut")
   @@index([utilisateurId], map: "idx_membres_utilisateur_id")
+  @@index([organisationId], map: "idx_membres_organisation_id")
   @@map("membres")
 }
 
@@ -62,7 +106,7 @@ model MembreFamille {
   lienParente   LienParenteEnum @map("lien_parente")
   dateNaissance DateTime?       @map("date_naissance") @db.Date
   telephone     String?         @db.VarChar(30)
-  
+
   membre       Membre       @relation(fields: [membreId], references: [id], onDelete: Cascade)
   prestations  Prestation[]
 
@@ -71,16 +115,22 @@ model MembreFamille {
 }
 
 model TypeCotisation {
-  id          BigInt       @id @default(autoincrement())
-  libelle     String       @unique @db.VarChar(100)
-  cotisations Cotisation[]
-  parametres  Parametre[]
+  id             BigInt         @id @default(autoincrement())
+  organisationId BigInt         @default(1) @map("organisation_id")
+  libelle        String         @db.VarChar(100)
+  cotisations    Cotisation[]
+  parametres     Parametre[]
 
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@unique([libelle, organisationId], map: "uq_types_cotisation_libelle_org")
+  @@index([organisationId], map: "idx_types_cotisation_organisation_id")
   @@map("types_cotisation")
 }
 
 model Cotisation {
   id               BigInt            @id @default(autoincrement())
+  organisationId   BigInt            @default(1) @map("organisation_id")
   membreId         BigInt            @map("membre_id")
   typeCotisationId BigInt            @map("type_cotisation_id")
   montant          Decimal           @db.Decimal(12, 2)
@@ -89,11 +139,13 @@ model Cotisation {
   modePaiement     ModePaiementEnum? @map("mode_paiement")
   reference        String?           @db.VarChar(100)
   statut           StatutCotisation  @default(EN_ATTENTE)
-  
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   membre         Membre         @relation(fields: [membreId], references: [id], onDelete: Cascade)
   typeCotisation TypeCotisation @relation(fields: [typeCotisationId], references: [id])
 
   @@unique([membreId, typeCotisationId, periode], map: "uq_cotisation_membre_type_periode")
+  @@index([organisationId], map: "idx_cotisations_organisation_id")
   @@index([membreId], map: "idx_cotisations_membre_id")
   @@index([statut], map: "idx_cotisations_statut")
   @@index([typeCotisationId], map: "idx_cotisations_type_id")
@@ -104,6 +156,7 @@ model Cotisation {
 
 model Prestation {
   id               BigInt             @id @default(autoincrement())
+  organisationId   BigInt             @default(1) @map("organisation_id")
   membreId         BigInt             @map("membre_id")
   beneficiaireId   BigInt?            @map("beneficiaire_id")
   typePrestation   TypePrestationEnum @map("type_prestation")
@@ -111,21 +164,24 @@ model Prestation {
   description      String?
   montant          Decimal            @db.Decimal(12, 2)
   statut           StatutPrestation   @default(EN_ATTENTE)
-  
+
   dateValidation   DateTime?          @map("date_validation") @db.Timestamptz(6)
   valideParId      BigInt?            @map("valide_par_id")
-  
+
   datePaiement     DateTime?          @map("date_paiement") @db.Timestamptz(6)
   modePaiement     ModePaiementEnum?  @map("mode_paiement")
   reference        String?            @db.VarChar(100)
   payeParId        BigInt?            @map("paye_par_id")
- 
+
   historique       Json?              @default("[]")
+
+  organisation Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   membre       Membre         @relation(fields: [membreId], references: [id], onDelete: Cascade)
   beneficiaire MembreFamille? @relation(fields: [beneficiaireId], references: [id], onDelete: SetNull)
   validePar    Utilisateur?   @relation("PrestationsValidees", fields: [valideParId], references: [id], onDelete: SetNull)
   payePar      Utilisateur?   @relation("PrestationsPayees", fields: [payeParId], references: [id], onDelete: SetNull)
 
+  @@index([organisationId], map: "idx_prestations_organisation_id")
   @@index([membreId], map: "idx_prestations_membre_id")
   @@index([beneficiaireId], map: "idx_prestations_beneficiaire_id")
   @@index([statut], map: "idx_prestations_statut")
@@ -134,20 +190,25 @@ model Prestation {
 }
 
 model Activite {
-  id          BigInt   @id @default(autoincrement())
-  titre       String   @db.VarChar(200)
-  description String?
-  lieu        String?  @db.VarChar(200)
-  date        DateTime @db.Date
-  budget      Decimal? @db.Decimal(12, 2)
-  responsable String?  @db.VarChar(150)
+  id             BigInt   @id @default(autoincrement())
+  organisationId BigInt   @default(1) @map("organisation_id")
+  titre          String   @db.VarChar(200)
+  description    String?
+  lieu           String?  @db.VarChar(200)
+  date           DateTime @db.Date
+  budget         Decimal? @db.Decimal(12, 2)
+  responsable    String?  @db.VarChar(150)
 
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId], map: "idx_activites_organisation_id")
   @@index([date], map: "idx_activites_date")
   @@map("activites")
 }
 
 model Don {
   id                  BigInt            @id @default(autoincrement())
+  organisationId      BigInt            @default(1) @map("organisation_id")
   structureDonatrice  String            @map("structure_donatrice") @db.VarChar(200)
   montant             Decimal           @db.Decimal(12, 2)
   dateDon             DateTime          @default(now()) @map("date_don") @db.Date
@@ -157,8 +218,10 @@ model Don {
   utilisateurId       BigInt?           @map("utilisateur_id")
   dateCreation        DateTime          @default(now()) @map("date_creation") @db.Timestamptz(6)
 
-  utilisateur Utilisateur? @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
+  organisation Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  utilisateur  Utilisateur?  @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
 
+  @@index([organisationId], map: "idx_dons_organisation_id")
   @@index([dateDon], map: "idx_dons_date_don")
   @@index([structureDonatrice], map: "idx_dons_structure")
   @@index([utilisateurId], map: "idx_dons_utilisateur_id")
@@ -166,7 +229,8 @@ model Don {
 }
 
 model Parametre {
-  id                      Int             @id @default(1) @db.SmallInt
+  id                      Int             @id @default(autoincrement())
+  organisationId          BigInt          @default(1) @map("organisation_id")
   nomMutuelle             String          @map("nom_mutuelle") @db.VarChar(200)
   logoUrl                 String?         @map("logo_url") @db.VarChar(500)
   adresse                 String?
@@ -178,30 +242,37 @@ model Parametre {
   joursGrace              Int             @default(0) @map("jours_grace")
   smtpConfig              Json?           @default("{}") @map("smtp_config")
   paiementEnLigneConfig   Json?           @default("{}") @map("paiement_en_ligne_config")
-  typeCotisationDefaut    TypeCotisation? @relation(fields: [typeCotisationDefautId], references: [id])
+
+  organisation           Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  typeCotisationDefaut   TypeCotisation?  @relation(fields: [typeCotisationDefautId], references: [id])
 
   @@map("parametres")
 }
+
 model NotificationInApp {
-  id           BigInt   @id @default(autoincrement())
-  userId       BigInt   @map("user_id")
-  titre        String   @db.VarChar(200)
-  message      String   @db.VarChar(1000)
-  type         String   @db.VarChar(50)  // INFO, SUCCESS, WARNING, ERROR
-  lien         String?  @db.VarChar(500) // URL optionnelle pour rediriger
-  lue          Boolean  @default(false)
-  dateCreation DateTime @default(now()) @map("date_creation") @db.Timestamptz(6)
-  dateLecture  DateTime? @map("date_lecture") @db.Timestamptz(6)
+  id             BigInt       @id @default(autoincrement())
+  organisationId BigInt       @default(1) @map("organisation_id")
+  userId         BigInt       @map("user_id")
+  titre          String       @db.VarChar(200)
+  message        String       @db.VarChar(1000)
+  type           String       @db.VarChar(50) // INFO, SUCCESS, WARNING, ERROR
+  lien           String?      @db.VarChar(500)
+  lue            Boolean      @default(false)
+  dateCreation   DateTime     @default(now()) @map("date_creation") @db.Timestamptz(6)
+  dateLecture    DateTime?    @map("date_lecture") @db.Timestamptz(6)
 
-  utilisateur Utilisateur @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  utilisateur  Utilisateur  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([organisationId], map: "idx_notifications_organisation_id")
   @@index([userId], map: "idx_notifications_user_id")
   @@index([lue], map: "idx_notifications_lue")
   @@index([dateCreation], map: "idx_notifications_date_creation")
   @@map("notifications_inapp")
 }
+
 // ==========================================
-// VUES SQL (Corrigées pour Prisma 5)
+// VUES SQL (à mettre à jour plus tard avec organisationId)
 // ==========================================
 view VueMembresComplet {
   id                       BigInt              @id
@@ -296,11 +367,15 @@ view VueDashboardStats {
   @@map("vue_dashboard_stats")
 }
 
+// ==========================================
+// ENUMS (ajout de SUPER_ADMIN et des nouveaux enums SaaS)
+// ==========================================
 enum RoleUtilisateur {
+  SUPER_ADMIN
   ADMIN
   GESTIONNAIRE
   CAISSIER
-  MEMBRE 
+  MEMBRE
   @@map("role_utilisateur")
 }
 
@@ -360,4 +435,20 @@ enum StatutPrestation {
   REJETEE
   PAYEE
   @@map("statut_prestation")
+}
+
+// 🆕 NOUVEAUX ENUMS pour le SaaS
+enum PlanAbonnement {
+  ESSAI
+  ESSENTIEL
+  PRO
+  PREMIUM
+  @@map("plan_abonnement")
+}
+
+enum StatutAbonnement {
+  ACTIF
+  SUSPENDU
+  EXPIRE
+  @@map("statut_abonnement")
 }
