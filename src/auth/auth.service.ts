@@ -104,6 +104,7 @@ export class AuthService {
       nom: user.nom,
       prenom: user.prenom,
       role: user.role,
+      organisationId: user.organisationId ? user.organisationId.toString() : null, // 🆕
     };
 
     return this.jwtService.sign(payload);
