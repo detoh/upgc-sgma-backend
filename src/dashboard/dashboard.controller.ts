@@ -7,11 +7,13 @@ import { RoleUtilisateur } from '@prisma/client';
 
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+@Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
 export class DashboardController {
   constructor(private dashboardService: DashboardService) {}
 
   @Get('resume')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async getResume() {
     return this.dashboardService.getResume();
   }

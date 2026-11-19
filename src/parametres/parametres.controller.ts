@@ -8,6 +8,7 @@ import { RoleUtilisateur } from '@prisma/client';
 
 @Controller('parametres')
 @UseGuards(JwtAuthGuard)
+@Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.ADMIN)
 export class ParametresController {
   constructor(private parametresService: ParametresService) {}
 

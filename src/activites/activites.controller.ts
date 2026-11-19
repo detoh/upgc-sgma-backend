@@ -26,7 +26,7 @@ export class ActivitesController {
   // 🔒 Visible par tous les utilisateurs authentifiés
   @Get()
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER, RoleUtilisateur.MEMBRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER, RoleUtilisateur.MEMBRE)
   async findAll() {
     return this.activitesService.findAll();
   }
@@ -34,14 +34,14 @@ export class ActivitesController {
   // 🔒 Visible par tous les utilisateurs authentifiés
   @Get(':id')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER, RoleUtilisateur.MEMBRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER, RoleUtilisateur.MEMBRE)
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.activitesService.findOne(BigInt(id));
   }
 
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateActiviteDto,
@@ -51,7 +51,7 @@ export class ActivitesController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN)
+  @Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.activitesService.remove(BigInt(id));

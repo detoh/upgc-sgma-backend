@@ -109,10 +109,53 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
+  // Cache en mémoire pour éviter les requêtes DB répétées
+  private userCache = new Map<string, { user: any; timestamp: number }>();
+  private readonly CACHE_TTL = 30000; // 30 secondes
+
   async validateUser(userId: bigint) {
-    return this.prisma.utilisateur.findUnique({
-      where: { id: userId },
-    });
+    const cacheKey = userId.toString();
+    const cached = this.userCache.get(cacheKey);
+    
+    // Retourne le cache si valide (< 30s)
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.user;
+    }
+
+    try {
+      const user = await this.prisma.utilisateur.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          nom: true,
+          prenom: true,
+          role: true,
+          actif: true,
+          organisationId: true,
+          organisation: {
+            select: {
+              id: true,
+              nom: true,
+              slug: true,
+              plan: true,
+              statutAbonnement: true,
+            },
+          },
+        },
+      });
+
+      if (!user || !user.actif) {
+        return null;
+      }
+
+      // Met en cache
+      this.userCache.set(cacheKey, { user, timestamp: Date.now() });
+      return user;
+    } catch (error) {
+      console.error('Erreur validateUser:', (error as Error).message);
+      return null;
+    }
   }
 
   async getProfile(userId: bigint) {

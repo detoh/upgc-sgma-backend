@@ -16,6 +16,7 @@ import { RoleUtilisateur } from '@prisma/client';
 
 @Controller('prestations')
 @UseGuards(JwtAuthGuard)
+@Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER, RoleUtilisateur.MEMBRE)
 export class PrestationsController {
   constructor(private prestationsService: PrestationsService) {}
 
@@ -29,7 +30,7 @@ export class PrestationsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Body() dto: CreatePrestationDto,
@@ -41,14 +42,14 @@ export class PrestationsController {
   // 🔒 Protégé : ADMIN/GESTIONNAIRE uniquement
   @Get()
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
   async findAll(@Query() query: QueryPrestationDto) {
     return this.prestationsService.findAll(query);
   }
 
   @Get('stats')
-  @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @UseGuards(RolesGuard,RolesGuard)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
   async getStats() {
     return this.prestationsService.getStats();
   }
@@ -56,14 +57,14 @@ export class PrestationsController {
   // 🔒 Protégé : ADMIN/GESTIONNAIRE uniquement
   @Get(':id')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.prestationsService.findOne(BigInt(id));
   }
 
   @Patch(':id/valider')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
   async valider(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ValiderPrestationDto,
@@ -74,7 +75,7 @@ export class PrestationsController {
 
   @Patch(':id/payer')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async payer(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: PayerPrestationDto,

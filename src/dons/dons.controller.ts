@@ -16,7 +16,7 @@ export class DonsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Body() dto: CreateDonDto,
@@ -27,14 +27,14 @@ export class DonsController {
 
   @Get()
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async findAll() {
     return this.donsService.findAll();
   }
 
   @Get('stats')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async getStats() {
     return this.donsService.getStats();
   }

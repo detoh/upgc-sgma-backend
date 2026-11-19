@@ -432,37 +432,21 @@ export class PrestationsService {
   // STATISTIQUES
   // ==========================================
   async getStats() {
-    const [enAttente, validees, rejetees, payees] = await Promise.all([
-      this.prisma.prestation.count({ where: { statut: 'EN_ATTENTE' } }),
-      this.prisma.prestation.count({ where: { statut: 'VALIDEE' } }),
-      this.prisma.prestation.count({ where: { statut: 'REJETEE' } }),
-      this.prisma.prestation.count({ where: { statut: 'PAYEE' } }),
-    ]);
+    const stats = await this.prisma.prestation.groupBy({
+      by: ['statut'],
+      _count: true,
+    });
 
-    const [montantAttente, montantValidees, montantPayees] = await Promise.all([
-      this.prisma.prestation.aggregate({
-        where: { statut: 'EN_ATTENTE' },
-        _sum: { montant: true },
-      }),
-      this.prisma.prestation.aggregate({
-        where: { statut: 'VALIDEE' },
-        _sum: { montant: true },
-      }),
-      this.prisma.prestation.aggregate({
-        where: { statut: 'PAYEE' },
-        _sum: { montant: true },
-      }),
-    ]);
+    const statsMap = stats.reduce((acc, stat) => {
+      acc[stat.statut] = stat._count;
+      return acc;
+    }, {} as Record<string, number>);
 
     return {
-      enAttente,
-      validees,
-      rejetees,
-      payees,
-      total: enAttente + validees + rejetees + payees,
-      montantAttente: montantAttente._sum.montant || 0,
-      montantValidees: montantValidees._sum.montant || 0,
-      montantPayees: montantPayees._sum.montant || 0,
+      enAttente: statsMap['EN_ATTENTE'] || 0,
+      validees: statsMap['VALIDEE'] || 0,
+      rejetees: statsMap['REJETEE'] || 0,
+      payees: statsMap['PAYEE'] || 0,
     };
   }
 

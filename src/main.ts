@@ -8,7 +8,7 @@ async function bootstrap() {
 
   const allowedOrigins = [
     'http://localhost:3001',
-    'http://192.168.1.131:3001',
+    'http://192.168.1.154:3001',
     process.env.FRONTEND_URL,
   ].filter(Boolean);
 

@@ -12,7 +12,7 @@ import { RoleUtilisateur } from '@prisma/client';
 
 @Controller('utilisateurs')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(RoleUtilisateur.ADMIN)
+@Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.ADMIN)
 export class UtilisateursController {
   constructor(private utilisateursService: UtilisateursService) {}
 

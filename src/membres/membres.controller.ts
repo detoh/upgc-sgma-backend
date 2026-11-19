@@ -35,7 +35,7 @@ export class MembresController {
   // ==========================================
   @Get()
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   findAll(@Query() query: QueryMembreDto) {
     // Nettoyer les chaînes vides pour éviter les erreurs 400
     const cleanedQuery: any = {
@@ -60,8 +60,8 @@ export class MembresController {
   // MEMBRES À RELANCER (en retard de paiement)
   // ==========================================
   @Get('a-relancer')
-  @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER) 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   getMembresARelancer(@Query() query: { periode?: string; statut?: string }) {
     return this.membresService.getMembresARelancer(query);
   }
@@ -71,7 +71,7 @@ export class MembresController {
   // ==========================================
   @Get(':id/statut-complet')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+ @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async getStatutComplet(@Param('id', ParseIntPipe) id: number) {
     return this.membresService.getStatutComplet(BigInt(id));
   }
@@ -81,7 +81,7 @@ export class MembresController {
   // ==========================================
   @Get(':id/statut-cotisations')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+@Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   getStatutCotisations(@Param('id', ParseIntPipe) id: number) {
     return this.membresService.getStatutCotisations(BigInt(id));
   }
@@ -90,7 +90,7 @@ export class MembresController {
   // ==========================================
   @Get(':id/famille')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+@Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async getFamille(@Param('id', ParseIntPipe) id: number) {
     return this.membresService.getFamille(BigInt(id));
   }
@@ -144,7 +144,7 @@ export class MembresController {
   // ==========================================
   @Post(':id/famille')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async addFamille(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
     return this.membresService.addFamille(BigInt(id), dto);
   }
@@ -154,7 +154,7 @@ export class MembresController {
   // ==========================================
   @Patch(':id/famille/:familleId')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async updateFamille(
     @Param('id', ParseIntPipe) id: number,
     @Param('familleId', ParseIntPipe) familleId: number,
@@ -168,7 +168,7 @@ export class MembresController {
   // ==========================================
   @Delete(':id/famille/:familleId')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async removeFamille(
     @Param('id', ParseIntPipe) id: number,
     @Param('familleId', ParseIntPipe) familleId: number,
@@ -180,7 +180,7 @@ export class MembresController {
   // ==========================================
   @Get(':id')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.membresService.findOne(BigInt(id));
   }
@@ -190,7 +190,7 @@ export class MembresController {
   // ==========================================
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   create(@Body() createMembreDto: CreateMembreDto) {
     return this.membresService.create(createMembreDto);
   }
@@ -200,7 +200,7 @@ export class MembresController {
   // ==========================================
   @Post('import')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   @UseInterceptors(FileInterceptor('file'))
   async importMembres(@UploadedFile() file: any) {  // ✅ Utiliser 'any' au lieu de Express.Multer.File
     if (!file) {

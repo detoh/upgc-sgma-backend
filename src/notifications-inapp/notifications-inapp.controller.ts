@@ -8,7 +8,7 @@ import { RoleUtilisateur } from '@prisma/client';
 
 @Controller('notifications-inapp')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER, RoleUtilisateur.MEMBRE)
+@Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER, RoleUtilisateur.MEMBRE)
 export class NotificationsInAppController {
   constructor(private notificationsInAppService: NotificationsInAppService) {}
 

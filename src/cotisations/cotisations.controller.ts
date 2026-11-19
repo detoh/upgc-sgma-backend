@@ -32,7 +32,7 @@ export class CotisationsController {
 
   @Get('types')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
   async findAllTypes() {
     return this.cotisationsService.findAllTypes();
   }
@@ -43,7 +43,7 @@ export class CotisationsController {
   
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() dto: CreateCotisationDto) {
     return this.cotisationsService.create(dto);
@@ -51,28 +51,28 @@ export class CotisationsController {
 
   @Get()
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async findAll(@Query() query: QueryCotisationDto) {
     return this.cotisationsService.findAll(query);
   }
 
   @Get('stats/membre/:membreId')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async getStatsByMembre(@Param('membreId', ParseIntPipe) membreId: number) {
     return this.cotisationsService.getStatsByMembre(BigInt(membreId));
   }
 
   @Get(':id')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.cotisationsService.findOne(BigInt(id));
   }
 
   @Patch(':id/payer')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.CAISSIER)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async payer(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: PayerCotisationDto,
@@ -82,7 +82,7 @@ export class CotisationsController {
 
   @Patch(':id/annuler')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   async annuler(@Param('id', ParseIntPipe) id: number) {
     return this.cotisationsService.annuler(BigInt(id));
   }
