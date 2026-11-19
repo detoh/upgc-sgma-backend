@@ -17,7 +17,7 @@ export class ActivitesController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() dto: CreateActiviteDto) {
     return this.activitesService.create(dto);

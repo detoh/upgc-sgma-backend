@@ -219,7 +219,7 @@ export class MembresController {
   // ==========================================
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
+  @Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateMembreDto: UpdateMembreDto,
@@ -232,7 +232,7 @@ export class MembresController {
   // ==========================================
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(RoleUtilisateur.ADMIN)
+  @Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.ADMIN)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.membresService.remove(BigInt(id));
   }
