@@ -6,11 +6,23 @@ export class DashboardService {
   constructor(private prisma: PrismaService) {}
 
   // ==========================================
+  // HELPER : Construire le WHERE avec organisationId
+  // ==========================================
+  private buildWhere(organisationId: bigint | null, extraWhere: any = {}) {
+    if (organisationId === null) {
+      return extraWhere; // SUPER_ADMIN voit tout
+    }
+    return { organisationId, ...extraWhere };
+  }
+
+  // ==========================================
   // STATISTIQUES GLOBALES
   // ==========================================
-  async getStats() {
-    const stats = await this.prisma.vueDashboardStats.findFirst();
-    
+  async getStats(organisationId: bigint | null) {
+    const stats = await this.prisma.vueDashboardStats.findFirst({
+      where: this.buildWhere(organisationId),
+    });
+
     return {
       membres: {
         actifs: Number(stats?.totalMembresActifs || 0),
@@ -34,12 +46,11 @@ export class DashboardService {
   // ==========================================
   // MEMBRES (Vue complète)
   // ==========================================
-  async getMembres(options?: { search?: string; statut?: string; limit?: number }) {
+  async getMembres(organisationId: bigint | null, options?: { search?: string; statut?: string; limit?: number }) {
     const { search, statut, limit = 20 } = options || {};
 
-    // Construction du filtre
-    const where: any = {};
-    
+    const where: any = this.buildWhere(organisationId);
+
     if (search) {
       where.OR = [
         { nom: { contains: search, mode: 'insensitive' } },
@@ -47,7 +58,7 @@ export class DashboardService {
         { matricule: { contains: search, mode: 'insensitive' } },
       ];
     }
-    
+
     if (statut) {
       where.statut = statut;
     }
@@ -62,21 +73,20 @@ export class DashboardService {
   // ==========================================
   // COTISATIONS IMPAYÉES
   // ==========================================
-  async getCotisationsImpayees() {
+  async getCotisationsImpayees(organisationId: bigint | null) {
     return this.prisma.vueSituationCotisations.findMany({
-      where: {
-        statut: 'EN_ATTENTE',
-      },
+      where: this.buildWhere(organisationId, { statut: 'EN_ATTENTE' }),
       orderBy: { periode: 'asc' },
-      take: 50, // Limiter à 50 résultats
+      take: 50,
     });
   }
 
   // ==========================================
   // PRESTATIONS EN ATTENTE
   // ==========================================
-  async getPrestationsEnAttente() {
+  async getPrestationsEnAttente(organisationId: bigint | null) {
     return this.prisma.vuePrestationsEnAttente.findMany({
+      where: this.buildWhere(organisationId),
       orderBy: { dateEvenement: 'asc' },
     });
   }
@@ -84,8 +94,9 @@ export class DashboardService {
   // ==========================================
   // ACTIVITÉS À VENIR
   // ==========================================
-  async getActivitesAVenir() {
+  async getActivitesAVenir(organisationId: bigint | null) {
     return this.prisma.vueActivitesAVenir.findMany({
+      where: this.buildWhere(organisationId),
       orderBy: { date: 'asc' },
     });
   }
@@ -93,21 +104,24 @@ export class DashboardService {
   // ==========================================
   // RÉSUMÉ COMPLET DU DASHBOARD
   // ==========================================
-  async getResume() {
+  async getResume(organisationId: bigint | null) {
+    const whereMembre = this.buildWhere(organisationId);
+
     // 1. Statistiques des membres
-    const totalMembres = await this.prisma.membre.count();
+    const totalMembres = await this.prisma.membre.count({ where: whereMembre });
     const membresActifs = await this.prisma.membre.count({
-      where: { statut: 'ACTIF' },
+      where: { ...whereMembre, statut: 'ACTIF' },
     });
     const membresSuspendus = await this.prisma.membre.count({
-      where: { statut: 'SUSPENDU' },
+      where: { ...whereMembre, statut: 'SUSPENDU' },
     });
     const membresRadie = await this.prisma.membre.count({
-      where: { statut: 'RADIE' },
+      where: { ...whereMembre, statut: 'RADIE' },
     });
 
     // 2. Calculer le statut des cotisations pour tous les membres
     const membres = await this.prisma.membre.findMany({
+      where: whereMembre,
       include: {
         cotisations: {
           include: { typeCotisation: true },
@@ -141,7 +155,7 @@ export class DashboardService {
       } else {
         membresEnRetard++;
         totalMontantDu += montantDu;
-        
+
         membresEnRetardList.push({
           id: membre.id.toString(),
           nom: membre.nom,
@@ -153,7 +167,6 @@ export class DashboardService {
       }
     }
 
-    // Trier par montant dû décroissant et prendre les 10 premiers
     const top10EnRetard = membresEnRetardList
       .sort((a, b) => b.montantDu - a.montantDu)
       .slice(0, 10);
@@ -164,6 +177,7 @@ export class DashboardService {
 
     const cotisations = await this.prisma.cotisation.findMany({
       where: {
+        ...this.buildWhere(organisationId),
         statut: 'PAYEE',
         datePaiement: { gte: sixMoisAvant },
       },
@@ -173,10 +187,9 @@ export class DashboardService {
       },
     });
 
-    // Grouper par mois
     const encaissementsParMois: Record<string, number> = {};
     const moisLabels: string[] = [];
-    
+
     for (let i = 5; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
@@ -205,6 +218,7 @@ export class DashboardService {
 
     // 4. Répartition des cotisations par type
     const typesCotisation = await this.prisma.typeCotisation.findMany({
+      where: this.buildWhere(organisationId),
       include: {
         cotisations: {
           where: { statut: 'PAYEE' },
@@ -220,23 +234,16 @@ export class DashboardService {
     }));
 
     return {
-      // Stats membres
       totalMembres,
       membresActifs,
       membresSuspendus,
       membresRadie,
-      
-      // Stats cotisations
       membresAJour,
       membresEnRetard,
       totalMontantDu,
-      
-      // Graphiques
       top10EnRetard,
       encaissements,
       repartitionCotisations,
-      
-      // Meta
       dateGeneration: new Date(),
     };
   }

@@ -7,7 +7,12 @@ import { UpdateActiviteDto } from './dto/update-activite.dto';
 export class ActivitesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateActiviteDto) {
+  private buildWhere(organisationId: bigint | null, extraWhere: any = {}) {
+    if (organisationId === null) return extraWhere;
+    return { organisationId, ...extraWhere };
+  }
+
+  async create(organisationId: bigint, dto: CreateActiviteDto) {
     return this.prisma.activite.create({
       data: {
         titre: dto.titre,
@@ -16,19 +21,21 @@ export class ActivitesService {
         date: new Date(dto.date),
         budget: dto.budget,
         responsable: dto.responsable,
+        organisationId, // 🆕
       },
     });
   }
 
-  async findAll() {
+  async findAll(organisationId: bigint | null) {
     return this.prisma.activite.findMany({
+      where: this.buildWhere(organisationId),
       orderBy: { date: 'asc' },
     });
   }
 
-  async findOne(id: bigint) {
-    const activite = await this.prisma.activite.findUnique({
-      where: { id },
+  async findOne(organisationId: bigint | null, id: bigint) {
+    const activite = await this.prisma.activite.findFirst({
+      where: this.buildWhere(organisationId, { id }),
     });
 
     if (!activite) {
@@ -38,8 +45,8 @@ export class ActivitesService {
     return activite;
   }
 
-  async update(id: bigint, dto: UpdateActiviteDto) {
-    await this.findOne(id);
+  async update(organisationId: bigint | null, id: bigint, dto: UpdateActiviteDto) {
+    await this.findOne(organisationId, id);
 
     return this.prisma.activite.update({
       where: { id },
@@ -50,8 +57,8 @@ export class ActivitesService {
     });
   }
 
-  async remove(id: bigint) {
-    await this.findOne(id);
+  async remove(organisationId: bigint | null, id: bigint) {
+    await this.findOne(organisationId, id);
 
     return this.prisma.activite.delete({
       where: { id },

@@ -1,5 +1,5 @@
-import { 
-  Controller, Get, Post, Body, UseGuards, HttpCode, HttpStatus 
+import {
+  Controller, Get, Post, Body, UseGuards, HttpCode, HttpStatus, BadRequestException
 } from '@nestjs/common';
 import { DonsService } from './dons.service';
 import { CreateDonDto } from './dto/create-don.dto';
@@ -14,28 +14,30 @@ import { RoleUtilisateur } from '@prisma/client';
 export class DonsController {
   constructor(private donsService: DonsService) {}
 
+  private getOrganisationId(user: any): bigint {
+    if (!user.organisationId) throw new BadRequestException('Aucune organisation associée à cet utilisateur');
+    return BigInt(user.organisationId);
+  }
+
   @Post()
   @UseGuards(RolesGuard)
   @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
   @HttpCode(HttpStatus.CREATED)
-  async create(
-    @Body() dto: CreateDonDto,
-    @CurrentUser() user: any,
-  ) {
-    return this.donsService.create(dto, user.id);
+  async create(@Body() dto: CreateDonDto, @CurrentUser() user: any) {
+    return this.donsService.create(this.getOrganisationId(user), dto, user.id);
   }
 
   @Get()
   @UseGuards(RolesGuard)
   @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
-  async findAll() {
-    return this.donsService.findAll();
+  async findAll(@CurrentUser() user: any) {
+    return this.donsService.findAll(user.role === 'SUPER_ADMIN' ? null : this.getOrganisationId(user));
   }
 
   @Get('stats')
   @UseGuards(RolesGuard)
   @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
-  async getStats() {
-    return this.donsService.getStats();
+  async getStats(@CurrentUser() user: any) {
+    return this.donsService.getStats(user.role === 'SUPER_ADMIN' ? null : this.getOrganisationId(user));
   }
 }

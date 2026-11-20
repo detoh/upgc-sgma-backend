@@ -8,140 +8,74 @@ import * as bcrypt from 'bcrypt';
 export class UtilisateursService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateUtilisateurDto) {
-    // Vérifier si l'email existe déjà
+  private buildWhere(organisationId: bigint | null, extraWhere: any = {}) {
+    if (organisationId === null) return extraWhere;
+    return { organisationId, ...extraWhere };
+  }
+
+  async create(organisationId: bigint, dto: CreateUtilisateurDto) {
     const existing = await this.prisma.utilisateur.findFirst({
-      where: { email: dto.email },
+      where: { email: dto.email, organisationId },
     });
+    if (existing) throw new ConflictException('Cet email est déjà utilisé dans cette organisation');
 
-    if (existing) {
-      throw new ConflictException('Cet email est déjà utilisé');
-    }
-
-    // Hasher le mot de passe
     const hashedPassword = await bcrypt.hash(dto.motDePasse, 10);
-
     const { motDePasse, ...userData } = dto;
 
     return this.prisma.utilisateur.create({
-      data: {
-        ...userData,
-        motDePasse: hashedPassword,
-      },
-      select: {
-        id: true,
-        nom: true,
-        prenom: true,
-        email: true,
-        telephone: true,
-        role: true,
-        actif: true,
-        dateCreation: true,
-      },
+      data: { ...userData, motDePasse: hashedPassword, organisationId },
+      select: { id: true, nom: true, prenom: true, email: true, telephone: true, role: true, actif: true, dateCreation: true },
     });
   }
 
-  async findAll() {
+  async findAll(organisationId: bigint | null) {
     return this.prisma.utilisateur.findMany({
-      select: {
-        id: true,
-        nom: true,
-        prenom: true,
-        email: true,
-        telephone: true,
-        role: true,
-        actif: true,
-        dateCreation: true,
-      },
+      where: this.buildWhere(organisationId),
+      select: { id: true, nom: true, prenom: true, email: true, telephone: true, role: true, actif: true, dateCreation: true },
       orderBy: { dateCreation: 'desc' },
     });
   }
 
-  async findOne(id: bigint) {
-    const utilisateur = await this.prisma.utilisateur.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        nom: true,
-        prenom: true,
-        email: true,
-        telephone: true,
-        role: true,
-        actif: true,
-        dateCreation: true,
-        membres: true,
-      },
+  async findOne(organisationId: bigint | null, id: bigint) {
+    const utilisateur = await this.prisma.utilisateur.findFirst({
+      where: this.buildWhere(organisationId, { id }),
+      select: { id: true, nom: true, prenom: true, email: true, telephone: true, role: true, actif: true, dateCreation: true, membres: true },
     });
-
-    if (!utilisateur) {
-      throw new NotFoundException(`Utilisateur avec ID ${id} non trouvé`);
-    }
-
+    if (!utilisateur) throw new NotFoundException(`Utilisateur avec ID ${id} non trouvé`);
     return utilisateur;
   }
 
-  async update(id: bigint, dto: UpdateUtilisateurDto) {
-    await this.findOne(id);
-
+  async update(organisationId: bigint | null, id: bigint, dto: UpdateUtilisateurDto) {
+    await this.findOne(organisationId, id);
     return this.prisma.utilisateur.update({
       where: { id },
       data: dto,
-      select: {
-        id: true,
-        nom: true,
-        prenom: true,
-        email: true,
-        telephone: true,
-        role: true,
-        actif: true,
-        dateCreation: true,
-      },
+      select: { id: true, nom: true, prenom: true, email: true, telephone: true, role: true, actif: true, dateCreation: true },
     });
   }
 
-  async toggleActif(id: bigint) {
-    const utilisateur = await this.findOne(id);
-
+  async toggleActif(organisationId: bigint | null, id: bigint) {
+    const utilisateur = await this.findOne(organisationId, id);
     return this.prisma.utilisateur.update({
       where: { id },
       data: { actif: !utilisateur.actif },
-      select: {
-        id: true,
-        nom: true,
-        prenom: true,
-        email: true,
-        role: true,
-        actif: true,
-      },
+      select: { id: true, nom: true, prenom: true, email: true, role: true, actif: true },
     });
   }
 
-  async resetPassword(id: bigint, nouveauMotDePasse: string) {
-    await this.findOne(id);
-
-    if (nouveauMotDePasse.length < 6) {
-      throw new BadRequestException('Le mot de passe doit contenir au moins 6 caractères');
-    }
-
+  async resetPassword(organisationId: bigint | null, id: bigint, nouveauMotDePasse: string) {
+    await this.findOne(organisationId, id);
+    if (nouveauMotDePasse.length < 6) throw new BadRequestException('Le mot de passe doit contenir au moins 6 caractères');
     const hashedPassword = await bcrypt.hash(nouveauMotDePasse, 10);
-
     return this.prisma.utilisateur.update({
       where: { id },
       data: { motDePasse: hashedPassword },
-      select: {
-        id: true,
-        nom: true,
-        prenom: true,
-        email: true,
-      },
+      select: { id: true, nom: true, prenom: true, email: true },
     });
   }
 
-  async remove(id: bigint) {
-    await this.findOne(id);
-
-    return this.prisma.utilisateur.delete({
-      where: { id },
-    });
+  async remove(organisationId: bigint | null, id: bigint) {
+    await this.findOne(organisationId, id);
+    return this.prisma.utilisateur.delete({ where: { id } });
   }
 }

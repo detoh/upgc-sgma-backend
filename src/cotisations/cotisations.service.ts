@@ -1,5 +1,5 @@
-import { 
-  Injectable, NotFoundException, ConflictException, BadRequestException 
+import {
+  Injectable, NotFoundException, ConflictException, BadRequestException
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTypeCotisationDto } from './dto/create-type-cotisation.dto';
@@ -13,59 +13,42 @@ import { Prisma, StatutCotisation } from '@prisma/client';
 export class CotisationsService {
   constructor(private prisma: PrismaService) {}
 
-  // ==========================================
-  // TYPES DE COTISATION
-  // ==========================================
-  async createType(dto: CreateTypeCotisationDto) {
-  // APRÈS (ajoute organisationId: 1 temporairement)
-  const existing = await this.prisma.typeCotisation.findFirst({
-    where: { 
-      libelle: dto.libelle,
-      organisationId: 1n, // 🆕 Organisation UPGC par défaut
-    },
-  });
+  private buildWhere(organisationId: bigint | null, extraWhere: any = {}) {
+    if (organisationId === null) return extraWhere;
+    return { organisationId, ...extraWhere };
+  }
 
-    if (existing) {
-      throw new ConflictException('Ce type de cotisation existe déjà');
-    }
+  async createType(organisationId: bigint, dto: CreateTypeCotisationDto) {
+    const existing = await this.prisma.typeCotisation.findFirst({
+      where: { libelle: dto.libelle, organisationId },
+    });
+
+    if (existing) throw new ConflictException('Ce type de cotisation existe déjà');
 
     return this.prisma.typeCotisation.create({
-      data: { libelle: dto.libelle },
+      data: { libelle: dto.libelle, organisationId },
     });
   }
 
-  async findAllTypes() {
+  async findAllTypes(organisationId: bigint | null) {
     return this.prisma.typeCotisation.findMany({
+      where: this.buildWhere(organisationId),
       orderBy: { libelle: 'asc' },
-      include: {
-        _count: {
-          select: { cotisations: true },
-        },
-      },
+      include: { _count: { select: { cotisations: true } } },
     });
   }
 
-  // ==========================================
-  // COTISATIONS
-  // ==========================================
-  async create(dto: CreateCotisationDto) {
-    // Vérifier que le membre existe
-    const membre = await this.prisma.membre.findUnique({
-      where: { id: BigInt(dto.membreId) },
+  async create(organisationId: bigint, dto: CreateCotisationDto) {
+    const membre = await this.prisma.membre.findFirst({
+      where: { id: BigInt(dto.membreId), organisationId },
     });
-    if (!membre) {
-      throw new NotFoundException(`Membre avec ID ${dto.membreId} non trouvé`);
-    }
+    if (!membre) throw new NotFoundException(`Membre avec ID ${dto.membreId} non trouvé`);
 
-    // Vérifier que le type de cotisation existe
-    const type = await this.prisma.typeCotisation.findUnique({
-      where: { id: BigInt(dto.typeCotisationId) },
+    const type = await this.prisma.typeCotisation.findFirst({
+      where: { id: BigInt(dto.typeCotisationId), organisationId },
     });
-    if (!type) {
-      throw new NotFoundException(`Type de cotisation avec ID ${dto.typeCotisationId} non trouvé`);
-    }
+    if (!type) throw new NotFoundException(`Type de cotisation avec ID ${dto.typeCotisationId} non trouvé`);
 
-    // Vérifier l'unicité (membre + type + période)
     const existing = await this.prisma.cotisation.findUnique({
       where: {
         membreId_typeCotisationId_periode: {
@@ -76,11 +59,7 @@ export class CotisationsService {
       },
     });
 
-    if (existing) {
-      throw new ConflictException(
-        `Une cotisation existe déjà pour ce membre, ce type et cette période (${dto.periode})`,
-      );
-    }
+    if (existing) throw new ConflictException(`Une cotisation existe déjà pour ce membre, ce type et cette période (${dto.periode})`);
 
     return this.prisma.cotisation.create({
       data: {
@@ -89,38 +68,26 @@ export class CotisationsService {
         montant: dto.montant,
         periode: dto.periode,
         statut: dto.statut || 'EN_ATTENTE',
+        organisationId,
       },
       include: {
-        membre: {
-          select: { id: true, matricule: true, nom: true, prenom: true },
-        },
+        membre: { select: { id: true, matricule: true, nom: true, prenom: true } },
         typeCotisation: true,
       },
     });
   }
 
-  async findAll(query: QueryCotisationDto) {
+  async findAll(organisationId: bigint | null, query: QueryCotisationDto) {
     const { page = 1, limit = 10, membreId, periode, statut, typeCotisationId } = query;
     const skip = (page - 1) * limit;
     const take = Number(limit);
 
-    const where: Prisma.CotisationWhereInput = {};
+    const where: Prisma.CotisationWhereInput = this.buildWhere(organisationId) as any;
 
-    if (membreId) {
-      where.membreId = BigInt(membreId);
-    }
-
-    if (periode) {
-      where.periode = periode;
-    }
-
-    if (statut) {
-      where.statut = statut;
-    }
-
-    if (typeCotisationId) {
-      where.typeCotisationId = BigInt(typeCotisationId);
-    }
+    if (membreId) where.membreId = BigInt(membreId);
+    if (periode) where.periode = periode;
+    if (statut) where.statut = statut;
+    if (typeCotisationId) where.typeCotisationId = BigInt(typeCotisationId);
 
     const [cotisations, total] = await Promise.all([
       this.prisma.cotisation.findMany({
@@ -129,9 +96,7 @@ export class CotisationsService {
         take,
         orderBy: { periode: 'desc' },
         include: {
-          membre: {
-            select: { id: true, matricule: true, nom: true, prenom: true },
-          },
+          membre: { select: { id: true, matricule: true, nom: true, prenom: true } },
           typeCotisation: true,
         },
       }),
@@ -140,46 +105,28 @@ export class CotisationsService {
 
     return {
       data: cotisations,
-      meta: {
-        total,
-        page,
-        limit: take,
-        totalPages: Math.ceil(total / take),
-      },
+      meta: { total, page, limit: take, totalPages: Math.ceil(total / take) },
     };
   }
 
-  async findOne(id: bigint) {
-    const cotisation = await this.prisma.cotisation.findUnique({
-      where: { id },
+  async findOne(organisationId: bigint | null, id: bigint) {
+    const cotisation = await this.prisma.cotisation.findFirst({
+      where: this.buildWhere(organisationId, { id }),
       include: {
-        membre: {
-          select: { id: true, matricule: true, nom: true, prenom: true },
-        },
+        membre: { select: { id: true, matricule: true, nom: true, prenom: true } },
         typeCotisation: true,
       },
     });
 
-    if (!cotisation) {
-      throw new NotFoundException(`Cotisation avec ID ${id} non trouvée`);
-    }
-
+    if (!cotisation) throw new NotFoundException(`Cotisation avec ID ${id} non trouvée`);
     return cotisation;
   }
 
-  // ==========================================
-  // PAIEMENT D'UNE COTISATION
-  // ==========================================
-  async payer(id: bigint, dto: PayerCotisationDto) {
-    const cotisation = await this.findOne(id);
+  async payer(organisationId: bigint | null, id: bigint, dto: PayerCotisationDto) {
+    const cotisation = await this.findOne(organisationId, id);
 
-    if (cotisation.statut === 'PAYEE') {
-      throw new BadRequestException('Cette cotisation est déjà payée');
-    }
-
-    if (cotisation.statut === 'ANNULEE') {
-      throw new BadRequestException('Impossible de payer une cotisation annulée');
-    }
+    if (cotisation.statut === 'PAYEE') throw new BadRequestException('Cette cotisation est déjà payée');
+    if (cotisation.statut === 'ANNULEE') throw new BadRequestException('Impossible de payer une cotisation annulée');
 
     return this.prisma.cotisation.update({
       where: { id },
@@ -190,23 +137,16 @@ export class CotisationsService {
         datePaiement: dto.datePaiement ? new Date(dto.datePaiement) : new Date(),
       },
       include: {
-        membre: {
-          select: { id: true, matricule: true, nom: true, prenom: true },
-        },
+        membre: { select: { id: true, matricule: true, nom: true, prenom: true } },
         typeCotisation: true,
       },
     });
   }
 
-  // ==========================================
-  // ANNULATION D'UNE COTISATION
-  // ==========================================
-  async annuler(id: bigint) {
-    const cotisation = await this.findOne(id);
+  async annuler(organisationId: bigint | null, id: bigint) {
+    const cotisation = await this.findOne(organisationId, id);
 
-    if (cotisation.statut === 'PAYEE') {
-      throw new BadRequestException('Impossible d\'annuler une cotisation déjà payée');
-    }
+    if (cotisation.statut === 'PAYEE') throw new BadRequestException('Impossible d\'annuler une cotisation déjà payée');
 
     return this.prisma.cotisation.update({
       where: { id },
@@ -214,22 +154,14 @@ export class CotisationsService {
     });
   }
 
-  // ==========================================
-  // STATISTIQUES PAR MEMBRE
-  // ==========================================
-  async getStatsByMembre(membreId: bigint) {
+  async getStatsByMembre(organisationId: bigint | null, membreId: bigint) {
     const cotisations = await this.prisma.cotisation.findMany({
-      where: { membreId },
+      where: this.buildWhere(organisationId, { membreId }),
       include: { typeCotisation: true },
     });
 
-    const totalPaye = cotisations
-      .filter(c => c.statut === 'PAYEE')
-      .reduce((sum, c) => sum + Number(c.montant), 0);
-
-    const totalEnAttente = cotisations
-      .filter(c => c.statut === 'EN_ATTENTE' || c.statut === 'EN_RETARD')
-      .reduce((sum, c) => sum + Number(c.montant), 0);
+    const totalPaye = cotisations.filter(c => c.statut === 'PAYEE').reduce((sum, c) => sum + Number(c.montant), 0);
+    const totalEnAttente = cotisations.filter(c => c.statut === 'EN_ATTENTE' || c.statut === 'EN_RETARD').reduce((sum, c) => sum + Number(c.montant), 0);
 
     return {
       membreId: membreId.toString(),

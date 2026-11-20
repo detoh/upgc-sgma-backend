@@ -6,7 +6,12 @@ import { CreateDonDto } from './dto/create-don.dto';
 export class DonsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateDonDto, userId: bigint) {
+  private buildWhere(organisationId: bigint | null, extraWhere: any = {}) {
+    if (organisationId === null) return extraWhere;
+    return { organisationId, ...extraWhere };
+  }
+
+  async create(organisationId: bigint, dto: CreateDonDto, userId: bigint) {
     return this.prisma.don.create({
       data: {
         structureDonatrice: dto.structureDonatrice,
@@ -16,6 +21,7 @@ export class DonsService {
         motif: dto.motif,
         reference: dto.reference,
         utilisateurId: userId,
+        organisationId, // 🆕
       },
       include: {
         utilisateur: {
@@ -25,8 +31,9 @@ export class DonsService {
     });
   }
 
-  async findAll() {
+  async findAll(organisationId: bigint | null) {
     return this.prisma.don.findMany({
+      where: this.buildWhere(organisationId),
       orderBy: { dateDon: 'desc' },
       include: {
         utilisateur: {
@@ -36,11 +43,15 @@ export class DonsService {
     });
   }
 
-  async getStats() {
-    const dons = await this.prisma.don.findMany();
-    
+  async getStats(organisationId: bigint | null) {
+    // Optimisation : on ne récupère que le montant pour le calcul
+    const dons = await this.prisma.don.findMany({
+      where: this.buildWhere(organisationId),
+      select: { montant: true },
+    });
+
     const total = dons.reduce((sum, don) => sum + Number(don.montant), 0);
-    
+
     return {
       totalDons: dons.length,
       montantTotal: total,

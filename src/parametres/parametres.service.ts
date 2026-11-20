@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateParametresDto } from './dto/update-parametres.dto';
 
@@ -6,50 +6,37 @@ import { UpdateParametresDto } from './dto/update-parametres.dto';
 export class ParametresService {
   constructor(private prisma: PrismaService) {}
 
-  async get() {
-    // Récupérer les paramètres (il n'y en a qu'un seul avec ID = 1)
-    let parametres = await this.prisma.parametre.findUnique({
-      where: { id: 1 },
-      include: {
-        typeCotisationDefaut: true,
-      },
+  async get(organisationId: bigint) {
+    let parametres = await this.prisma.parametre.findFirst({
+      where: { organisationId },
+      include: { typeCotisationDefaut: true },
     });
 
-    // Si les paramètres n'existent pas encore, les créer avec des valeurs par défaut
     if (!parametres) {
       parametres = await this.prisma.parametre.create({
         data: {
-          id: 1,
-          nomMutuelle: 'UPGC Mutuelle',
+          organisationId,
+          nomMutuelle: 'Ma Mutuelle',
           devise: 'XOF',
           joursGrace: 0,
           smtpConfig: {},
           paiementEnLigneConfig: {},
         },
-        include: {
-          typeCotisationDefaut: true,
-        },
+        include: { typeCotisationDefaut: true },
       });
     }
-
     return parametres;
   }
 
-  async update(dto: UpdateParametresDto) {
-    // S'assurer que les paramètres existent
-    await this.get();
-
+  async update(organisationId: bigint, dto: UpdateParametresDto) {
+    const existing = await this.get(organisationId);
     return this.prisma.parametre.update({
-      where: { id: 1 },
+      where: { id: existing.id },
       data: {
         ...dto,
-        typeCotisationDefautId: dto.typeCotisationDefautId 
-          ? BigInt(dto.typeCotisationDefautId) 
-          : undefined,
+        typeCotisationDefautId: dto.typeCotisationDefautId ? BigInt(dto.typeCotisationDefautId) : undefined,
       },
-      include: {
-        typeCotisationDefaut: true,
-      },
+      include: { typeCotisationDefaut: true },
     });
   }
 }

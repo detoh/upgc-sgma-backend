@@ -1,10 +1,9 @@
 import {
   Controller, Get, Post, Patch, Body, Param, Query,
-  UseGuards, HttpCode, HttpStatus, ParseIntPipe, Request
+  UseGuards, HttpCode, HttpStatus, ParseIntPipe, Request, BadRequestException
 } from '@nestjs/common';
 import { PrestationsService } from './prestations.service';
 import { CreatePrestationDto } from './dto/create-prestation.dto';
-import { UpdatePrestationDto } from './dto/update-prestation.dto';
 import { ValiderPrestationDto } from './dto/valider-prestation.dto';
 import { PayerPrestationDto } from './dto/payer-prestation.dto';
 import { QueryPrestationDto } from './dto/query-prestation.dto';
@@ -16,13 +15,14 @@ import { RoleUtilisateur } from '@prisma/client';
 
 @Controller('prestations')
 @UseGuards(JwtAuthGuard)
-@Roles(RoleUtilisateur.SUPER_ADMIN,RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER, RoleUtilisateur.MEMBRE)
 export class PrestationsController {
   constructor(private prestationsService: PrestationsService) {}
 
-  // ==========================================
-  // ESPACE MEMBRE (routes "me") — AVANT les routes ":id"
-  // ==========================================
+  private getOrganisationId(user: any): bigint {
+    if (!user.organisationId) throw new BadRequestException('Aucune organisation associée à cet utilisateur');
+    return BigInt(user.organisationId);
+  }
+
   @Get('me')
   async getMyPrestations(@Request() req) {
     return this.prestationsService.getPrestationsByUtilisateurId(BigInt(req.user.id));
@@ -32,55 +32,42 @@ export class PrestationsController {
   @UseGuards(RolesGuard)
   @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
   @HttpCode(HttpStatus.CREATED)
-  async create(
-    @Body() dto: CreatePrestationDto,
-    @CurrentUser() user: any,
-  ) {
-    return this.prestationsService.create(dto, user.id);
+  async create(@Body() dto: CreatePrestationDto, @CurrentUser() user: any) {
+    return this.prestationsService.create(this.getOrganisationId(user), dto, user.id);
   }
 
-  // 🔒 Protégé : ADMIN/GESTIONNAIRE uniquement
   @Get()
   @UseGuards(RolesGuard)
   @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
-  async findAll(@Query() query: QueryPrestationDto) {
-    return this.prestationsService.findAll(query);
+  async findAll(@CurrentUser() user: any, @Query() query: QueryPrestationDto) {
+    return this.prestationsService.findAll(user.role === 'SUPER_ADMIN' ? null : this.getOrganisationId(user), query);
   }
 
   @Get('stats')
-  @UseGuards(RolesGuard,RolesGuard)
+  @UseGuards(RolesGuard)
   @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
-  async getStats() {
-    return this.prestationsService.getStats();
+  async getStats(@CurrentUser() user: any) {
+    return this.prestationsService.getStats(user.role === 'SUPER_ADMIN' ? null : this.getOrganisationId(user));
   }
 
-  // 🔒 Protégé : ADMIN/GESTIONNAIRE uniquement
   @Get(':id')
   @UseGuards(RolesGuard)
   @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.prestationsService.findOne(BigInt(id));
+  async findOne(@CurrentUser() user: any, @Param('id', ParseIntPipe) id: number) {
+    return this.prestationsService.findOne(user.role === 'SUPER_ADMIN' ? null : this.getOrganisationId(user), BigInt(id));
   }
 
   @Patch(':id/valider')
   @UseGuards(RolesGuard)
   @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.MEMBRE)
-  async valider(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ValiderPrestationDto,
-    @CurrentUser() user: any,
-  ) {
-    return this.prestationsService.valider(BigInt(id), dto, user.id);
+  async valider(@Param('id', ParseIntPipe) id: number, @Body() dto: ValiderPrestationDto, @CurrentUser() user: any) {
+    return this.prestationsService.valider(user.role === 'SUPER_ADMIN' ? null : this.getOrganisationId(user), BigInt(id), dto, user.id);
   }
 
   @Patch(':id/payer')
   @UseGuards(RolesGuard)
   @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE, RoleUtilisateur.CAISSIER)
-  async payer(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: PayerPrestationDto,
-    @CurrentUser() user: any,
-  ) {
-    return this.prestationsService.payer(BigInt(id), dto, user.id);
+  async payer(@Param('id', ParseIntPipe) id: number, @Body() dto: PayerPrestationDto, @CurrentUser() user: any) {
+    return this.prestationsService.payer(user.role === 'SUPER_ADMIN' ? null : this.getOrganisationId(user), BigInt(id), dto, user.id);
   }
 }
