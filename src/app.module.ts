@@ -16,6 +16,7 @@ import { NotificationsModule } from './notifications/notifications.module';// �
 import { NotificationsInAppModule } from './notifications-inapp/notifications-inapp.module';
 import { EmailModule } from './common/email/email.module';
 import { SubscriptionGuard } from './billing/guards/subscription.guard';
+import { BillingModule } from './billing/billing.module';
 
 @Module({
   imports: [
@@ -23,20 +24,21 @@ import { SubscriptionGuard } from './billing/guards/subscription.guard';
       isGlobal: true,
     }),
     PrismaModule,
-    AuthModule, // 👈 AJOUT
-    MembresModule, // 👈 AJOUT
-    CotisationsModule, // 👈 AJOUT
-    PrestationsModule, // 👈 AJOUT
-    DashboardModule, // 👈 AJOUT
-    ParametresModule, // 👈 AJOUT
-    ActivitesModule, // 👈 AJOUT
+    AuthModule, 
+    MembresModule, 
+    CotisationsModule, 
+    PrestationsModule, 
+    DashboardModule, 
+    ParametresModule, 
+    ActivitesModule, 
     DonsModule, 
-    RapportsModule, // 👈 AJOUT
-    UtilisateursModule, // 👈 AJOUT
+    RapportsModule, 
+    UtilisateursModule, 
     NotificationsModule,
     NotificationsInAppModule,
     EmailModule,
-     // 👈 AJOUT
+    BillingModule,
+     
   ],
   controllers: [],
   providers: [
