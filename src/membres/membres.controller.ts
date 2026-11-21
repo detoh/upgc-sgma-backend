@@ -25,9 +25,9 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { RoleUtilisateur } from '@prisma/client';
 import { BigIntInterceptor } from '../common/interceptors/bigint.interceptor';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-
+import { SubscriptionGuard } from '../billing/guards/subscription.guard';
 @Controller('membres')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, SubscriptionGuard)
 @UseInterceptors(BigIntInterceptor)
 export class MembresController {
   constructor(private readonly membresService: MembresService) {}

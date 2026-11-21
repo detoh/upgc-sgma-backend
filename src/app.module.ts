@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -14,6 +15,7 @@ import { UtilisateursModule } from './utilisateurs/utilisateurs.module';
 import { NotificationsModule } from './notifications/notifications.module';// 👈 AJOUT
 import { NotificationsInAppModule } from './notifications-inapp/notifications-inapp.module';
 import { EmailModule } from './common/email/email.module';
+import { SubscriptionGuard } from './billing/guards/subscription.guard';
 
 @Module({
   imports: [
@@ -33,9 +35,15 @@ import { EmailModule } from './common/email/email.module';
     UtilisateursModule, // 👈 AJOUT
     NotificationsModule,
     NotificationsInAppModule,
-    EmailModule, // 👈 AJOUT
+    EmailModule,
+     // 👈 AJOUT
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: SubscriptionGuard,
+    },
+  ],
 })
 export class AppModule {}

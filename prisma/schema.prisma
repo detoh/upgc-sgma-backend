@@ -12,31 +12,46 @@ datasource db {
 // ORGANISATION (NOUVEAU - modèle racine du SaaS)
 // ==========================================
 model Organisation {
-  id            BigInt             @id @default(autoincrement())
-  nom           String             @db.VarChar(200)
-  slug          String             @unique @db.VarChar(100) // ex: upgc, mutuelle-x
-  logoUrl       String?            @map("logo_url") @db.VarChar(500)
-  adresse       String?
-  email         String?            @db.VarChar(255)
-  telephone     String?            @db.VarChar(30)
-  devise        String             @default("XOF") @db.VarChar(10)
-  plan          PlanAbonnement     @default(ESSAI)
-  statutAbonnement StatutAbonnement @default(ACTIF) @map("statut_abonnement")
-  dateDebutEssai DateTime?         @map("date_debut_essai") @db.Timestamptz(6)
-  dateFinEssai   DateTime?         @map("date_fin_essai") @db.Timestamptz(6)
-  dateCreation  DateTime           @default(now()) @map("date_creation") @db.Timestamptz(6)
-  actif         Boolean            @default(true)
+  id                        BigInt              @id @default(autoincrement())
+  nom                       String              @db.VarChar(200)
+  slug                      String              @unique @db.VarChar(100)
+  logoUrl                   String?             @map("logo_url") @db.VarChar(500)
+  adresse                   String?
+  email                     String?             @db.VarChar(255)
+  telephone                 String?             @db.VarChar(30)
+  devise                    String              @default("XOF") @db.VarChar(10)
+  
+  // ==========================================
+  // ANCIEN SYSTÈME PHASE 1 (à garder)
+  // ==========================================
+  plan                      PlanAbonnement      @default(ESSAI)
+  statutAbonnement          StatutAbonnement    @default(ACTIF) @map("statut_abonnement")
+  dateDebutEssai            DateTime?           @map("date_debut_essai") @db.Timestamptz(6)
+  dateFinEssai              DateTime?           @map("date_fin_essai") @db.Timestamptz(6)
+  dateCreation              DateTime            @default(now()) @map("date_creation") @db.Timestamptz(6)
+  actif                     Boolean             @default(true)
 
-  // Relations
-  utilisateurs      Utilisateur[]
-  membres           Membre[]
-  typesCotisation   TypeCotisation[]
-  cotisations       Cotisation[]
-  prestations       Prestation[]
-  activites         Activite[]
-  dons              Don[]
-  parametres        Parametre[]
-  notificationsInApp NotificationInApp[]
+  // ==========================================
+  // NOUVEAU SYSTÈME BILLING (Phase 2)
+  // ==========================================
+  planId                    BigInt?             @map("plan_id")
+  planFacturation           Plan?               @relation(fields: [planId], references: [id])
+  dateExpirationAbonnement  DateTime?           @map("date_expiration_abonnement")
+  cinetpayCustomerId        String?             @map("cinetpay_customer_id")
+
+  // ==========================================
+  // RELATIONS
+  // ==========================================
+  utilisateurs              Utilisateur[]
+  membres                   Membre[]
+  typesCotisation           TypeCotisation[]
+  cotisations               Cotisation[]
+  prestations               Prestation[]
+  activites                 Activite[]
+  dons                      Don[]
+  parametres                Parametre[]
+  notificationsInApp        NotificationInApp[]
+  paiements                 Paiement[]
 
   @@index([slug], map: "idx_organisations_slug")
   @@index([statutAbonnement], map: "idx_organisations_statut")
@@ -271,6 +286,61 @@ model NotificationInApp {
   @@map("notifications_inapp")
 }
 
+model Plan {
+  id                    BigInt    @id @default(autoincrement())
+  type                  PlanType  @unique
+  nom                   String
+  description           String?
+  prixMensuel           Int       // en XOF
+  prixAnnuel            Int       // en XOF (avec remise)
+  maxMembres            Int?      // null = illimité
+  maxUtilisateurs       Int?      // null = illimité
+  fonctionnalites       Json      // Liste des features actives
+  actif                 Boolean   @default(true)
+  dateCreation          DateTime  @default(now())
+  dateModification      DateTime  @updatedAt
+
+  organisations         Organisation[]
+  paiements             Paiement[]
+
+  @@map("plans")
+}
+
+model Paiement {
+  id                    BigInt            @id @default(autoincrement())
+  organisationId        BigInt
+  organisation          Organisation      @relation(fields: [organisationId], references: [id])
+  planId                BigInt?
+  plan                  Plan?             @relation(fields: [planId], references: [id])
+  montant               Int               // en XOF
+  modePaiement          ModePaiement
+  statut                StatutPaiement    @default(EN_ATTENTE)
+  periode               PeriodeAbonnement // MENSUEL ou ANNUEL
+  datePaiement          DateTime?
+  dateExpiration        DateTime?         // Date à laquelle cet abonnement expire
+  reference             String?           @unique // ID CinetPay ou n° reçu cash
+  referenceExterne      String?           // ID transaction OM/MTN
+  metadata              Json?             // Données supplémentaires (n° reçu cash, etc.)
+  valideParId           BigInt?           // Utilisateur qui a validé (pour cash)
+  dateCreation          DateTime          @default(now())
+
+  @@index([organisationId])
+  @@index([statut])
+  @@map("paiements")
+}
+
+model JournalEvenement {
+  id                    BigInt    @id @default(autoincrement())
+  organisationId        BigInt
+  type                  String    // 'ABONNEMENT_CREE', 'PAIEMENT_RECU', 'SUSPENSION', etc.
+  description           String
+  metadata              Json?
+  dateCreation          DateTime  @default(now())
+
+  @@index([organisationId])
+  @@map("journal_evenements")
+}
+
 // ==========================================
 // VUES SQL (à mettre à jour plus tard avec organisationId)
 // ==========================================
@@ -438,6 +508,7 @@ enum StatutPrestation {
 }
 
 // 🆕 NOUVEAUX ENUMS pour le SaaS
+
 enum PlanAbonnement {
   ESSAI
   ESSENTIEL
@@ -451,4 +522,33 @@ enum StatutAbonnement {
   SUSPENDU
   EXPIRE
   @@map("statut_abonnement")
+}
+enum PlanType {
+  GRATUIT
+  PREMIUM
+  ENTERPRISE
+}
+
+enum ModePaiement {
+  CINETPAY    // OM, MTN, Moov, Wave via CinetPay
+  CASH        // Paiement en espèces
+  VIREMENT    // Virement bancaire
+  CHEQUE      // Chèque
+  GRATUIT     // Plan gratuit (pas de paiement)
+}
+
+enum TypeTransaction {
+  ABONNEMENT  // Paiement d'un abonnement
+  DON         // Don à la mutuelle (existant)
+}
+enum StatutPaiement {
+  EN_ATTENTE  // Initiated, waiting for payment
+  SUCCES      // Payment confirmed
+  ECHOUE      // Payment failed
+  ANNULE      // Cancelled by user
+}
+
+enum PeriodeAbonnement {
+  MENSUEL
+  ANNUEL
 }

@@ -5,9 +5,10 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RoleUtilisateur } from '@prisma/client';
+import { SubscriptionGuard } from '../billing/guards/subscription.guard';
 
 @Controller('rapports')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, SubscriptionGuard)
 @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
 export class RapportsController {
   constructor(private rapportsService: RapportsService) {}

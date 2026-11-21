@@ -13,9 +13,9 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RoleUtilisateur } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-
+import { SubscriptionGuard } from '../billing/guards/subscription.guard';
 @Controller('cotisations')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, SubscriptionGuard)
 export class CotisationsController {
   constructor(private cotisationsService: CotisationsService) {}
 
