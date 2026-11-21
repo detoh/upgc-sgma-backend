@@ -19,12 +19,23 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RoleUtilisateur } from '@prisma/client';
 import { Public } from '../auth/decorators/public.decorator';
+import { SubscriptionCronService } from './cron/subscription-cron.service';
 
 @Controller('billing')
 @UseGuards(JwtAuthGuard)
 export class BillingController {
-  constructor(private billingService: BillingService) {}
-
+  constructor(
+    private billingService: BillingService,
+    private CronService: SubscriptionCronService,
+  ) {}
+  
+  // Ajoute cette route (SUPER_ADMIN uniquement)
+  @Post('cron/trigger')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.SUPER_ADMIN)
+  async triggerCron() {
+    return this.CronService.triggerManually();
+  }
   // ==========================================
   // ROUTES PUBLIQUES (accessibles même si suspendu)
   // ==========================================

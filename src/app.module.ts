@@ -17,6 +17,7 @@ import { NotificationsInAppModule } from './notifications-inapp/notifications-in
 import { EmailModule } from './common/email/email.module';
 import { SubscriptionGuard } from './billing/guards/subscription.guard';
 import { BillingModule } from './billing/billing.module';
+import { SubscriptionCronModule } from './billing/cron/subscription-cron.module';
 
 @Module({
   imports: [
@@ -38,7 +39,7 @@ import { BillingModule } from './billing/billing.module';
     NotificationsInAppModule,
     EmailModule,
     BillingModule,
-     
+    SubscriptionCronModule,
   ],
   controllers: [],
   providers: [

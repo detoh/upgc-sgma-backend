@@ -60,16 +60,7 @@ export class SubscriptionGuard implements CanActivate {
       );
     }
 
-    // 7. Bloquer si expiré (et pas en période d'essai active)
-    if (
-      organisation.dateExpirationAbonnement &&
-      organisation.dateExpirationAbonnement < now &&
-      organisation.statutAbonnement !== 'ACTIF'
-    ) {
-      throw new ForbiddenException(
-        'Votre abonnement a expiré. Veuillez renouveler pour continuer.',
-      );
-    }
+
 
     return true;
   }
