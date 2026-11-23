@@ -18,6 +18,8 @@ import { EmailModule } from './common/email/email.module';
 import { SubscriptionGuard } from './billing/guards/subscription.guard';
 import { BillingModule } from './billing/billing.module';
 import { SubscriptionCronModule } from './billing/cron/subscription-cron.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -40,6 +42,8 @@ import { SubscriptionCronModule } from './billing/cron/subscription-cron.module'
     EmailModule,
     BillingModule,
     SubscriptionCronModule,
+    OnboardingModule,
+    AdminModule,
   ],
   controllers: [],
   providers: [

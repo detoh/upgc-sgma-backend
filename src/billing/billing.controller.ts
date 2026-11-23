@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { CreatePaiementDto } from './dto/create-paiement.dto';
@@ -20,6 +21,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RoleUtilisateur } from '@prisma/client';
 import { Public } from '../auth/decorators/public.decorator';
 import { SubscriptionCronService } from './cron/subscription-cron.service';
+import { CinetpayService } from './services/cinetpay.service';
 
 @Controller('billing')
 @UseGuards(JwtAuthGuard)
@@ -27,6 +29,7 @@ export class BillingController {
   constructor(
     private billingService: BillingService,
     private CronService: SubscriptionCronService,
+    private cinetpayService: CinetpayService, 
   ) {}
   
   // Ajoute cette route (SUPER_ADMIN uniquement)
@@ -82,5 +85,12 @@ export class BillingController {
     @CurrentUser() user: any,
   ) {
     return this.billingService.validerPaiementCash(BigInt(id), dto, BigInt(user.id));
+  }
+  
+  // 🆕 Webhook CinetPay (accessible publiquement)
+  @Post('cinetpay/webhook')
+  @Public()
+  async handleCinetpayWebhook(@Body() body: any) {
+    return this.billingService.handleCinetpayWebhook(body);
   }
 }

@@ -3,15 +3,22 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaiementDto } from './dto/create-paiement.dto';
 import { ValiderPaiementDto } from './dto/valider-paiement.dto';
 import { StatutPaiement, ModePaiement } from '@prisma/client';
+import { CinetpayService } from './services/cinetpay.service';
+
 
 @Injectable()
 export class BillingService {
-  constructor(private prisma: PrismaService) {}
+    private readonly logger = new Logger(BillingService.name);
+  constructor(
+    private prisma: PrismaService,
+    private cinetpayService: CinetpayService,
+  ) {}
 
   // ==========================================
   // RÉCUPÉRER LES PLANS DISPONIBLES
@@ -91,46 +98,27 @@ export class BillingService {
   // CRÉER UN PAIEMENT (CASH ou CINETPAY)
   // ==========================================
   async createPaiement(organisationId: bigint, dto: CreatePaiementDto, userId: bigint) {
-    // Vérifier le plan
     const plan = await this.prisma.plan.findUnique({
       where: { id: BigInt(dto.planId) },
     });
 
-    if (!plan) {
-      throw new NotFoundException('Plan non trouvé');
-    }
+    if (!plan) throw new NotFoundException('Plan non trouvé');
+    if (!plan.actif) throw new BadRequestException('Ce plan n\'est plus disponible');
 
-    if (!plan.actif) {
-      throw new BadRequestException('Ce plan n\'est plus disponible');
-    }
-
-    // Calculer le montant
     const montant = dto.periode === 'MENSUEL' ? plan.prixMensuel : plan.prixAnnuel;
+    if (montant === 0) throw new BadRequestException('Le plan Gratuit ne nécessite pas de paiement');
 
-    if (montant === 0) {
-      throw new BadRequestException('Le plan Gratuit ne nécessite pas de paiement');
-    }
-
-    // Générer une référence unique
     const reference = `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-    // Calculer la date d'expiration
     const now = new Date();
-    const dateExpiration = new Date(now);
-    if (dto.periode === 'MENSUEL') {
-      dateExpiration.setMonth(dateExpiration.getMonth() + 1);
-    } else {
-      dateExpiration.setFullYear(dateExpiration.getFullYear() + 1);
-    }
 
-    // Créer le paiement
+    // Créer le paiement en base
     const paiement = await this.prisma.paiement.create({
       data: {
         organisationId,
         planId: BigInt(dto.planId),
         montant,
         modePaiement: dto.modePaiement,
-        statut: dto.modePaiement === ModePaiement.CASH ? StatutPaiement.EN_ATTENTE : StatutPaiement.EN_ATTENTE,
+        statut: StatutPaiement.EN_ATTENTE,
         periode: dto.periode,
         reference,
         metadata: dto.numeroTelephone ? { numeroTelephone: dto.numeroTelephone } : undefined,
@@ -138,9 +126,7 @@ export class BillingService {
       },
       include: {
         plan: true,
-        organisation: {
-          select: { id: true, nom: true, slug: true },
-        },
+        organisation: { select: { id: true, nom: true, slug: true } },
       },
     });
 
@@ -154,25 +140,60 @@ export class BillingService {
       },
     });
 
-    return {
-      paiement: {
-        id: paiement.id.toString(),
-        reference: paiement.reference,
-        montant: paiement.montant,
-        modePaiement: paiement.modePaiement,
-        statut: paiement.statut,
-        periode: paiement.periode,
-        dateExpiration: paiement.dateExpiration,
-      },
-      plan: {
-        id: plan.id.toString(),
-        nom: plan.nom,
-        type: plan.type,
-      },
-      message: dto.modePaiement === ModePaiement.CASH
-        ? 'Paiement en espèces enregistré. En attente de validation par un administrateur.'
-        : 'Paiement initié. Vous allez être redirigé vers la page de paiement.',
-    };
+    // Si CASH → retour simple
+    if (dto.modePaiement === ModePaiement.CASH) {
+      return {
+        paiement: {
+          id: paiement.id.toString(),
+          reference: paiement.reference,
+          montant: paiement.montant,
+          modePaiement: paiement.modePaiement,
+          statut: paiement.statut,
+          periode: paiement.periode,
+        },
+        plan: { id: plan.id.toString(), nom: plan.nom, type: plan.type },
+        message: 'Paiement en espèces enregistré. En attente de validation par un administrateur.',
+      };
+    }
+
+    // Si CINETPAY → initialiser le paiement mobile
+    if (dto.modePaiement === ModePaiement.CINETPAY) {
+      if (!dto.numeroTelephone) {
+        throw new BadRequestException('Numéro de téléphone requis pour Mobile Money');
+      }
+
+      try {
+        const cinetpayResult = await this.cinetpayService.initializePayment({
+          transactionId: paiement.reference,
+          montant,
+          description: `Abonnement ${plan.nom} - ${paiement.organisation.nom}`,
+          numeroTelephone: dto.numeroTelephone,
+          currency: 'XOF',
+        });
+
+        return {
+          paiement: {
+            id: paiement.id.toString(),
+            reference: paiement.reference,
+            montant: paiement.montant,
+            modePaiement: paiement.modePaiement,
+            statut: paiement.statut,
+            periode: paiement.periode,
+          },
+          plan: { id: plan.id.toString(), nom: plan.nom, type: plan.type },
+          paymentUrl: cinetpayResult.paymentUrl,
+          message: 'Vous allez être redirigé vers la page de paiement Mobile Money.',
+        };
+      } catch (error) {
+        await this.prisma.paiement.update({
+          where: { id: paiement.id },
+          data: { statut: StatutPaiement.ANNULE },
+        });
+        throw error;
+      }
+    }
+
+    throw new BadRequestException('Mode de paiement non supporté');
   }
 
   // ==========================================
@@ -288,4 +309,81 @@ export class BillingService {
       orderBy: { dateCreation: 'asc' },
     });
   }
-}
+ /**
+ * Gérer le webhook CinetPay (confirmation de paiement)
+ */
+  async handleCinetpayWebhook(payload: any) {
+    const transactionId = payload.transaction_id || payload.data?.transaction_id;
+    const status = payload.status || payload.data?.status;
+
+    this.logger.log(`📥 Webhook CinetPay: ${transactionId} - ${status}`);
+
+    const paiement = await this.prisma.paiement.findFirst({
+      where: { reference: transactionId },
+      include: { organisation: true, plan: true },
+    });
+
+    if (!paiement) {
+      this.logger.warn(`Paiement non trouvé: ${transactionId}`);
+      return { message: 'Paiement non trouvé' };
+    }
+
+    if (status === 'ACCEPTED' || status === 'SUCCESS') {
+      const now = new Date();
+      const dateExpiration = new Date(now);
+      if (paiement.periode === 'MENSUEL') {
+        dateExpiration.setMonth(dateExpiration.getMonth() + 1);
+      } else {
+        dateExpiration.setFullYear(dateExpiration.getFullYear() + 1);
+      }
+
+      await this.prisma.$transaction([
+        this.prisma.paiement.update({
+          where: { id: paiement.id },
+          data: {
+            statut: StatutPaiement.SUCCES,
+            datePaiement: now,
+            dateExpiration,
+            metadata: { ...(paiement.metadata as Record<string, any> || {}), webhookPayload: payload },
+          },
+        }),
+        this.prisma.organisation.update({
+          where: { id: paiement.organisationId },
+          data: {
+            statutAbonnement: 'ACTIF',
+            planId: paiement.planId,
+            dateExpirationAbonnement: dateExpiration,
+            dateFinEssai: null,
+          },
+        }),
+        this.prisma.journalEvenement.create({
+          data: {
+            organisationId: paiement.organisationId,
+            type: 'PAIEMENT_CINETPAY_VALIDE',
+            description: `Paiement Mobile Money de ${paiement.montant} XOF confirmé automatiquement`,
+            metadata: { paiementId: paiement.id.toString(), transactionId },
+          },
+        }),
+      ]);
+
+      this.logger.log(`✅ Abonnement activé pour ${paiement.organisation.nom}`);
+      return { message: 'Paiement confirmé et abonnement activé' };
+    } else {
+      await this.prisma.paiement.update({
+        where: { id: paiement.id },
+        data: { statut: StatutPaiement.ECHOUE },
+      });
+      return { message: 'Paiement échoué' };
+    }
+  }
+
+  /**
+   * Simuler la confirmation d'un paiement (mode test)
+   */
+  async simulerConfirmationPaiement(reference: string) {
+    return this.handleCinetpayWebhook({
+      transaction_id: reference,
+      status: 'ACCEPTED',
+    });
+  }
+  }
