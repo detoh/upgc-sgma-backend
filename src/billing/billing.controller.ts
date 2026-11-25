@@ -22,6 +22,7 @@ import { RoleUtilisateur } from '@prisma/client';
 import { Public } from '../auth/decorators/public.decorator';
 import { SubscriptionCronService } from './cron/subscription-cron.service';
 import { CinetpayService } from './services/cinetpay.service';
+import { EmailService } from '../emails/email.service';
 
 @Controller('billing')
 @UseGuards(JwtAuthGuard)
@@ -30,6 +31,7 @@ export class BillingController {
     private billingService: BillingService,
     private CronService: SubscriptionCronService,
     private cinetpayService: CinetpayService, 
+    private emailService: EmailService,
   ) {}
   
   // Ajoute cette route (SUPER_ADMIN uniquement)
@@ -92,5 +94,22 @@ export class BillingController {
   @Public()
   async handleCinetpayWebhook(@Body() body: any) {
     return this.billingService.handleCinetpayWebhook(body);
+  }
+
+  // 🆕 Endpoint de test email (SUPER_ADMIN uniquement)
+  @Post('test-email')
+  @UseGuards(RolesGuard)
+  @Roles(RoleUtilisateur.SUPER_ADMIN)
+  async testEmail(@Body() body: { to: string }) {
+    const result = await this.emailService.sendEmail({
+      to: body.to,
+      subject: '🧪 Test de connexion Resend',
+      html: `
+        <h1>Test réussi !</h1>
+        <p>Si vous recevez cet email, Resend fonctionne correctement.</p>
+        <p>Heure d'envoi : ${new Date().toLocaleString('fr-FR')}</p>
+      `,
+    });
+    return result;
   }
 }

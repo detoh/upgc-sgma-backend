@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,14 +9,16 @@ import { CreatePaiementDto } from './dto/create-paiement.dto';
 import { ValiderPaiementDto } from './dto/valider-paiement.dto';
 import { StatutPaiement, ModePaiement } from '@prisma/client';
 import { CinetpayService } from './services/cinetpay.service';
-
+import { EmailService } from '../emails/email.service';
 
 @Injectable()
 export class BillingService {
-    private readonly logger = new Logger(BillingService.name);
+  private readonly logger = new Logger(BillingService.name);
+
   constructor(
     private prisma: PrismaService,
     private cinetpayService: CinetpayService,
+    private emailService: EmailService,
   ) {}
 
   // ==========================================
@@ -53,14 +54,12 @@ export class BillingService {
       throw new NotFoundException('Organisation non trouvée');
     }
 
-    // Récupérer le plan de facturation lié
     const planFacturation = organisation.planId
       ? await this.prisma.plan.findUnique({
           where: { id: organisation.planId },
         })
       : null;
 
-    // Calculer les jours restants
     const now = new Date();
     const expiration = organisation.dateExpirationAbonnement;
     const joursRestants = expiration
@@ -111,7 +110,6 @@ export class BillingService {
     const reference = `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date();
 
-    // Créer le paiement en base
     const paiement = await this.prisma.paiement.create({
       data: {
         organisationId,
@@ -130,7 +128,6 @@ export class BillingService {
       },
     });
 
-    // Journaliser
     await this.prisma.journalEvenement.create({
       data: {
         organisationId,
@@ -214,7 +211,6 @@ export class BillingService {
     }
 
     if (!dto.approuve) {
-      // Rejeter le paiement
       await this.prisma.paiement.update({
         where: { id: paiementId },
         data: {
@@ -222,11 +218,10 @@ export class BillingService {
           metadata: { motifRejet: dto.motifRejet },
         },
       });
-
       return { message: 'Paiement rejeté', statut: 'ANNULE' };
     }
 
-    // Approuver et activer l'abonnement
+    // Calculer la date d'expiration
     const now = new Date();
     const dateExpiration = new Date(now);
     if (paiement.periode === 'MENSUEL') {
@@ -235,9 +230,8 @@ export class BillingService {
       dateExpiration.setFullYear(dateExpiration.getFullYear() + 1);
     }
 
-    // Transaction : mettre à jour paiement + organisation
+    // ✅ TRANSACTION : seulement les opérations Prisma
     await this.prisma.$transaction([
-      // Mettre à jour le paiement
       this.prisma.paiement.update({
         where: { id: paiementId },
         data: {
@@ -248,8 +242,6 @@ export class BillingService {
           referenceExterne: dto.referenceExterne,
         },
       }),
-      // Activer l'abonnement de l'organisation
-      // ✅ APRÈS
       this.prisma.organisation.update({
         where: { id: paiement.organisationId },
         data: {
@@ -259,7 +251,6 @@ export class BillingService {
           dateFinEssai: null,
         },
       }),
-      // Journaliser
       this.prisma.journalEvenement.create({
         data: {
           organisationId: paiement.organisationId,
@@ -269,6 +260,32 @@ export class BillingService {
         },
       }),
     ]);
+
+    // 🆕 ENVOI EMAIL : APRÈS la transaction (code JS normal)
+    try {
+      const admin = await this.prisma.utilisateur.findFirst({
+        where: {
+          organisationId: paiement.organisationId,
+          role: 'ADMIN',
+          actif: true,
+        },
+        select: { email: true },
+      });
+
+      if (admin && paiement.plan) {
+        await this.emailService.sendPaymentConfirmation({
+          to: admin.email,
+          nomOrganisation: paiement.organisation.nom,
+          montant: paiement.montant,
+          plan: paiement.plan.nom,
+          periode: paiement.periode,
+          dateExpiration,
+        });
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Erreur inconnue';
+      this.logger.error(`Erreur envoi email de confirmation: ${msg}`);
+    }
 
     return {
       message: 'Paiement validé. Abonnement activé avec succès.',
@@ -309,9 +326,10 @@ export class BillingService {
       orderBy: { dateCreation: 'asc' },
     });
   }
- /**
- * Gérer le webhook CinetPay (confirmation de paiement)
- */
+
+  // ==========================================
+  // GÉRER LE WEBHOOK CINETPAY
+  // ==========================================
   async handleCinetpayWebhook(payload: any) {
     const transactionId = payload.transaction_id || payload.data?.transaction_id;
     const status = payload.status || payload.data?.status;
@@ -366,6 +384,32 @@ export class BillingService {
         }),
       ]);
 
+      // 🆕 ENVOI EMAIL APRÈS transaction réussie
+      try {
+        const admin = await this.prisma.utilisateur.findFirst({
+          where: {
+            organisationId: paiement.organisationId,
+            role: 'ADMIN',
+            actif: true,
+          },
+          select: { email: true },
+        });
+
+        if (admin && paiement.plan) {
+          await this.emailService.sendPaymentConfirmation({
+            to: admin.email,
+            nomOrganisation: paiement.organisation.nom,
+            montant: paiement.montant,
+            plan: paiement.plan.nom,
+            periode: paiement.periode,
+            dateExpiration,
+          });
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Erreur inconnue';
+        this.logger.error(`Erreur envoi email CinetPay: ${msg}`);
+      }
+
       this.logger.log(`✅ Abonnement activé pour ${paiement.organisation.nom}`);
       return { message: 'Paiement confirmé et abonnement activé' };
     } else {
@@ -377,13 +421,13 @@ export class BillingService {
     }
   }
 
-  /**
-   * Simuler la confirmation d'un paiement (mode test)
-   */
+  // ==========================================
+  // SIMULER LA CONFIRMATION D'UN PAIEMENT (mode test)
+  // ==========================================
   async simulerConfirmationPaiement(reference: string) {
     return this.handleCinetpayWebhook({
       transaction_id: reference,
       status: 'ACCEPTED',
     });
   }
-  }
+}

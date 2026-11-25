@@ -1,14 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../../emails/email.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class SubscriptionCronService {
   private readonly logger = new Logger(SubscriptionCronService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService, 
+    private emailService: EmailService,
+    private configService: ConfigService, 
+  ) {}
 
-  // ==========================================
+  // =================
+  // =========================
   // CRON PRINCIPAL : Tous les jours à minuit
   // Vérifie les expirations et suspend les organisations
   // ==========================================
@@ -119,7 +126,6 @@ export class SubscriptionCronService {
     const targetDate = new Date(now);
     targetDate.setDate(targetDate.getDate() + daysBeforeExpiry);
 
-    // Trouver les organisations qui expirent dans X jours
     const startOfDay = new Date(targetDate);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(targetDate);
@@ -131,7 +137,7 @@ export class SubscriptionCronService {
           gte: startOfDay,
           lte: endOfDay,
         },
-         statutAbonnement: 'ACTIF',
+        statutAbonnement: 'ACTIF',
       },
       select: {
         id: true,
@@ -146,7 +152,7 @@ export class SubscriptionCronService {
     this.logger.log(`📢 ${organisations.length} organisation(s) à notifier pour J-${daysBeforeExpiry}`);
 
     for (const org of organisations) {
-      // Vérifier si déjà notifié (éviter les doublons)
+      // Vérifier si déjà notifié aujourd'hui
       const existingNotification = await this.prisma.journalEvenement.findFirst({
         where: {
           organisationId: org.id,
@@ -156,26 +162,29 @@ export class SubscriptionCronService {
       });
 
       if (existingNotification) {
-        continue; // Déjà notifié aujourd'hui
+        this.logger.log(`ℹ️ ${org.nom} déjà notifié aujourd'hui pour J-${daysBeforeExpiry}`);
+        continue;
       }
 
-      // Envoyer l'email (à implémenter avec ton service email)
-      await this.sendExpirationEmail(org, daysBeforeExpiry);
+      // Envoyer l'email (UN SEUL appel)
+      const result = await this.sendExpirationEmail(org, daysBeforeExpiry);
 
-      // Journaliser la notification
-      await this.prisma.journalEvenement.create({
-        data: {
-          organisationId: org.id,
-          type: `NOTIFICATION_J${daysBeforeExpiry}`,
-          description: `Email de rappel envoyé : expiration dans ${daysBeforeExpiry} jour(s)`,
-          metadata: {
-            joursRestants: daysBeforeExpiry,
-            envoyeA: org.email,
+      // Journaliser et logger
+      if (result.success) {
+        await this.prisma.journalEvenement.create({
+          data: {
+            organisationId: org.id,
+            type: `NOTIFICATION_J${daysBeforeExpiry}`,
+            description: `Email de rappel envoyé : expiration dans ${daysBeforeExpiry} jour(s)`,
+            metadata: {
+              joursRestants: daysBeforeExpiry,
+            },
           },
-        },
-      });
-
-      this.logger.log(`📧 Notification J-${daysBeforeExpiry} envoyée à ${org.nom}`);
+        });
+        this.logger.log(`✅ Notification J-${daysBeforeExpiry} envoyée à ${org.nom}`);
+      } else {
+        this.logger.error(`❌ Échec envoi rappel J-${daysBeforeExpiry} à ${org.nom}`);
+      }
     }
   }
 
@@ -183,30 +192,34 @@ export class SubscriptionCronService {
   // Envoyer l'email d'expiration
   // ==========================================
   private async sendExpirationEmail(org: any, daysRemaining: number) {
-    const subject = `⚠️ Votre abonnement expire dans ${daysRemaining} jour(s)`;
-    const message = `
-Bonjour,
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3001');
+    const lienRenouvellement = `${frontendUrl}/dashboard/billing`;
 
-Votre abonnement pour l'organisation "${org.nom}" va expirer dans ${daysRemaining} jour(s).
+    // Récupérer l'email de l'admin de l'organisation
+    const admin = await this.prisma.utilisateur.findFirst({
+      where: {
+        organisationId: org.id,
+        role: 'ADMIN',
+        actif: true,
+      },
+      select: { email: true, nom: true, prenom: true },
+    });
 
-Pour éviter toute interruption de service, veuillez renouveler votre abonnement dès maintenant.
+    // Validation : pas d'admin ou pas d'email
+    if (!admin || !admin.email) {
+      this.logger.warn(`⚠️ Aucun email admin valide pour ${org.nom}`);
+      return { success: false };
+    }
 
-Connectez-vous à votre espace : https://upgc-sgma-frontend.vercel.app/dashboard/billing
+    const result = await this.emailService.sendExpirationReminder({
+      to: admin.email,
+      nomOrganisation: org.nom,
+      joursRestants: daysRemaining,
+      dateExpiration: new Date(),
+      lienRenouvellement,
+    });
 
-Cordialement,
-L'équipe SGMA
-    `;
-
-    // TODO : Implémenter l'envoi réel avec ton service email
-    // Pour l'instant, on log juste
-    this.logger.log(`📤 [SIMULATION EMAIL] À: ${org.email} | Sujet: ${subject}`);
-    
-    // Exemple avec un service email (à adapter) :
-    // await this.emailService.send({
-    //   to: org.email,
-    //   subject,
-    //   html: message,
-    // });
+    return result;
   }
 
   // ==========================================
