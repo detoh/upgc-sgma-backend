@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards,Req, Param, ParseIntPipe, BadRequestException } from '@nestjs/common';
 import { RapportsService } from './rapports.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -6,12 +6,17 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RoleUtilisateur } from '@prisma/client';
 import { SubscriptionGuard } from '../billing/guards/subscription.guard';
+import { RapportsExportService } from './rapports-export.service';
+import { Res } from '@nestjs/common';
+
 
 @Controller('rapports')
 @UseGuards(JwtAuthGuard, RolesGuard, SubscriptionGuard)
 @Roles(RoleUtilisateur.SUPER_ADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.GESTIONNAIRE)
 export class RapportsController {
-  constructor(private rapportsService: RapportsService) {}
+  constructor(
+    private rapportsService: RapportsService,
+    private rapportsExportService: RapportsExportService,) {}
 
   private getOrganisationId(user: any): bigint {
     if (!user.organisationId) throw new BadRequestException('Aucune organisation associée');
@@ -49,5 +54,93 @@ export class RapportsController {
   async getEtatPaiements(@CurrentUser() user: any, @Query('annee') annee: number) {
     const anneeNum = Number(annee) || new Date().getFullYear();
     return this.rapportsService.getEtatPaiements(user.role === 'SUPER_ADMIN' ? null : this.getOrganisationId(user), anneeNum);
+  }
+
+  // 🆕 ROUTES D'EXPORT
+  @Get('financier/:annee/pdf')
+  async exportFinancierPdf(@Req() req: any, @Res() res: any, @Param('annee', ParseIntPipe) annee: number) {
+    const organisationId = req.user.role === 'SUPER_ADMIN' ? null : BigInt(req.user.organisationId);
+    return this.rapportsExportService.exportRapportFinancierPdf(organisationId, annee, res);
+  }
+
+  @Get('financier/:annee/excel')
+  async exportFinancierExcel(@Req() req: any, @Res() res: any, @Param('annee', ParseIntPipe) annee: number) {
+    const organisationId = req.user.role === 'SUPER_ADMIN' ? null : BigInt(req.user.organisationId);
+    return this.rapportsExportService.exportRapportFinancierExcel(organisationId, annee, res);
+  }
+
+  // ==========================================
+  // EXPORTS COTISATIONS
+  // ==========================================
+  @Get('cotisations/pdf')
+  async exportCotisationsPdf(
+    @Req() req: any,
+    @Res() res: any,
+    @Query('dateDebut') dateDebut: string,
+    @Query('dateFin') dateFin: string,
+  ) {
+    const organisationId = req.user.role === 'SUPER_ADMIN' ? null : BigInt(req.user.organisationId);
+    return this.rapportsExportService.exportRapportCotisationsPdf(organisationId, dateDebut, dateFin, res);
+  }
+
+  @Get('cotisations/excel')
+  async exportCotisationsExcel(
+    @Req() req: any,
+    @Res() res: any,
+    @Query('dateDebut') dateDebut: string,
+    @Query('dateFin') dateFin: string,
+  ) {
+    const organisationId = req.user.role === 'SUPER_ADMIN' ? null : BigInt(req.user.organisationId);
+    return this.rapportsExportService.exportRapportCotisationsExcel(organisationId, dateDebut, dateFin, res);
+  }
+
+  // ==========================================
+  // EXPORTS PRESTATIONS
+  // ==========================================
+  @Get('prestations/pdf')
+  async exportPrestationsPdf(
+    @Req() req: any,
+    @Res() res: any,
+    @Query('dateDebut') dateDebut: string,
+    @Query('dateFin') dateFin: string,
+  ) {
+    const organisationId = req.user.role === 'SUPER_ADMIN' ? null : BigInt(req.user.organisationId);
+    return this.rapportsExportService.exportRapportPrestationsPdf(organisationId, dateDebut, dateFin, res);
+  }
+
+  @Get('prestations/excel')
+  async exportPrestationsExcel(
+    @Req() req: any,
+    @Res() res: any,
+    @Query('dateDebut') dateDebut: string,
+    @Query('dateFin') dateFin: string,
+  ) {
+    const organisationId = req.user.role === 'SUPER_ADMIN' ? null : BigInt(req.user.organisationId);
+    return this.rapportsExportService.exportRapportPrestationsExcel(organisationId, dateDebut, dateFin, res);
+  }
+
+  // ==========================================
+  // EXPORTS DONS
+  // ==========================================
+  @Get('dons/pdf')
+  async exportDonsPdf(
+    @Req() req: any,
+    @Res() res: any,
+    @Query('dateDebut') dateDebut: string,
+    @Query('dateFin') dateFin: string,
+  ) {
+    const organisationId = req.user.role === 'SUPER_ADMIN' ? null : BigInt(req.user.organisationId);
+    return this.rapportsExportService.exportRapportDonsPdf(organisationId, dateDebut, dateFin, res);
+  }
+
+  @Get('dons/excel')
+  async exportDonsExcel(
+    @Req() req: any,
+    @Res() res: any,
+    @Query('dateDebut') dateDebut: string,
+    @Query('dateFin') dateFin: string,
+  ) {
+    const organisationId = req.user.role === 'SUPER_ADMIN' ? null : BigInt(req.user.organisationId);
+    return this.rapportsExportService.exportRapportDonsExcel(organisationId, dateDebut, dateFin, res);
   }
 }
