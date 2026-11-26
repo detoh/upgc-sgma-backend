@@ -1,4 +1,8 @@
 {
+
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "name": "upgc-sgma-backend",
   "version": "1.0.0",
   "description": "Backend du système de gestion des mutuelles et associations",
