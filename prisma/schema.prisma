@@ -73,8 +73,8 @@ model Membre {
   matricule      String          @db.VarChar(50)
   nom            String          @db.VarChar(100)
   prenom         String          @db.VarChar(100)
-  sexe           SexeEnum
-  dateNaissance  DateTime        @map("date_naissance") @db.Date
+  sexe           SexeEnum?
+  dateNaissance DateTime?       @map("date_naissance") @db.Date
   profession     String?         @db.VarChar(150)
   adresse        String?
   telephone      String?         @db.VarChar(30)
